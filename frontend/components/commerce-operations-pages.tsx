@@ -22,10 +22,41 @@ export function BranchOperationsPage({ superAdmin = false }: { superAdmin?: bool
   const [branchId, setBranchId] = useState("");
   const [from, setFrom] = useState(today());
   const [to, setTo] = useState(today());
-  const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [refresh, setRefresh] = useState(0);
-  useEffect(() => { const token = localStorage.getItem("anhh-staff-access-token") ?? ""; if (!token) { setError("Sign in to view branch operations."); setLoading(false); return; } if (!from || !to) return; setLoading(true); setError(""); getBranchOperations(token, { from, to, branchId: branchId || undefined }, superAdmin).then(result => { setRows(result); if (!branchId) setBranches(result); }).catch(e => setError(e instanceof ApiError ? e.message : "Branch activity could not be loaded.")).finally(() => setLoading(false)); }, [superAdmin, from, to, branchId, refresh]);
+  const requestKey = `${superAdmin}:${from}:${to}:${branchId}:${refresh}`;
+  const [loadedRequestKey, setLoadedRequestKey] = useState("");
+  const loading = requestKey !== loadedRequestKey;
+  useEffect(() => {
+    let active = true;
+    const token = localStorage.getItem("anhh-staff-access-token") ?? "";
+    const request = token
+      ? from && to
+        ? getBranchOperations(token, { from, to, branchId: branchId || undefined }, superAdmin)
+        : Promise.resolve(null)
+      : Promise.reject(new Error("Sign in to view branch operations."));
+
+    request
+      .then(result => {
+        if (!active) return;
+        if (result) {
+          setRows(result);
+          if (!branchId) setBranches(result);
+        }
+        setError("");
+      })
+      .catch(e => {
+        if (!active) return;
+        setError(e instanceof Error && e.message === "Sign in to view branch operations."
+          ? e.message
+          : e instanceof ApiError ? e.message : "Branch activity could not be loaded.");
+      })
+      .finally(() => {
+        if (active) setLoadedRequestKey(requestKey);
+      });
+
+    return () => { active = false; };
+  }, [superAdmin, from, to, branchId, refresh, requestKey]);
   const exportCsv = () => saveCsv(`branch-operations-${from}-to-${to}.csv`, [["Branch", "Orders", "Customers", "Pharmacy orders", "Products", "Active riders", "Assigned riders", "Pending payments", "Paid payments", "Paid amount (NPR)", "Delivered", "Order value (NPR)"], ...rows.map(row => [row.branchName, row.orderCount, row.customerCount, row.pharmacyOrderCount, row.productCount, row.riderCount, row.assignedRiderCount, row.pendingPaymentCount, row.paidPaymentCount, row.paidPaymentAmount, row.deliveredCount, row.orderValue])]);
   return <AdminShell superAdmin={superAdmin}><main className="mx-auto grid w-full max-w-[1500px] gap-6 px-4 py-6 sm:px-6 lg:px-8"><header className="flex flex-wrap items-end justify-between gap-4"><div><p className="text-xs font-extrabold uppercase tracking-[0.16em] text-teal-700">Operations overview</p><h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">Branch activity</h1><p className="mt-2 max-w-2xl text-sm text-slate-600">Live order, customer, product, payment, rider, and delivery totals from the selected date range.</p></div><div className="flex flex-wrap gap-2"><Button variant="outline" onClick={() => setRefresh(value => value + 1)}><RefreshCw size={15} />Refresh</Button><Button variant="outline" onClick={exportCsv} disabled={!rows.length}><Download size={15} />Export CSV</Button></div></header>
     <Card><CardContent className="grid gap-3 p-4 sm:grid-cols-3"><label className="grid gap-1.5 text-xs font-bold text-slate-600">From<Input type="date" value={from} max={to} onChange={event => setFrom(event.target.value)} /></label><label className="grid gap-1.5 text-xs font-bold text-slate-600">To<Input type="date" value={to} min={from} max={today()} onChange={event => setTo(event.target.value)} /></label><label className="grid gap-1.5 text-xs font-bold text-slate-600">Branch<Select value={branchId} onChange={event => setBranchId(event.target.value)}><option value="">All branches</option>{branches.map(branch => <option key={branch.branchId} value={branch.branchId}>{branch.branchName}</option>)}</Select></label></CardContent></Card>

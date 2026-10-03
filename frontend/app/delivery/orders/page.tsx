@@ -9,4 +9,84 @@ import { StaffShell, staffToken } from "@/components/staff-shell";
 import { ApiError, getStaffOrders, type Paged, type StaffOrderListItem } from "@/services/api";
 import { RiderOrderComposer } from "@/components/rider-order-composer";
 
-export default function DeliveryOrders() { const [data, setData] = useState<Paged<StaffOrderListItem> | null>(null); const [status, setStatus] = useState(""); const [search, setSearch] = useState(""); const [error, setError] = useState(""); const load = () => { setError(""); return getStaffOrders(staffToken(), "delivery", { search: search || undefined, status: status || undefined }).then(setData).catch((e) => setError(e instanceof ApiError ? e.message : "Assigned deliveries could not be loaded.")); }; useEffect(() => { void load(); }, [status]); return <StaffShell panel="delivery" title="My deliveries" action={<button onClick={load} className="soft-btn"><RefreshCw size={15} /> Refresh</button>}><RiderOrderComposer token={staffToken()} onCreated={load} /><div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row"><div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 px-3"><Search size={16} className="text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} onKeyDown={(e) => e.key === "Enter" && load()} className="w-full bg-transparent py-2.5 text-sm outline-none" placeholder="Search order, customer, or area" /></div><select value={status} onChange={(e) => setStatus(e.target.value)} className="field sm:max-w-56"><option value="">All assigned</option>{["ASSIGNED_FOR_DELIVERY", "ACCEPTED", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"].map((x) => <option key={x}>{x}</option>)}</select><button onClick={load} className="primary-btn justify-center">Search</button></div>{error && <p role="alert" className="mt-5 rounded-2xl bg-rose-50 p-4 text-sm font-semibold text-rose-700">{error}</p>}<div className="mt-6 grid gap-4">{data?.items.map((order) => <Link key={order.id} href={`/delivery/orders/${order.id}`} className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-sm"><div className="flex flex-wrap items-start justify-between gap-3"><div><p className="text-lg font-extrabold">{order.orderNumber}</p><p className="mt-1 text-sm text-slate-600">{order.customerName} · {order.customerPhone}</p></div><span className="rounded-full bg-teal-50 px-3 py-1 text-[11px] font-extrabold text-teal-800">{order.deliveryStatus ?? order.status}</span></div><div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs"><span className="flex items-center gap-2 text-slate-500"><Truck size={15} className="text-teal-700" /> {order.paymentMethod}</span><span className="font-extrabold text-slate-900">Rs. {order.total.toLocaleString("en-IN")}</span><span className="inline-flex items-center gap-1 font-extrabold text-teal-700"><Eye size={15} /> Open delivery</span></div></Link>)}{data?.items.length === 0 && <div className="rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center"><Truck className="mx-auto text-slate-300" size={38} /><p className="mt-4 font-extrabold">No deliveries assigned to you.</p><p className="mt-2 text-sm text-slate-500">New assignments will appear here.</p></div>}</div></StaffShell>; }
+export default function DeliveryOrders() {
+	const [data, setData] = useState<Paged<StaffOrderListItem> | null>(null);
+	const [status, setStatus] = useState("");
+	const [search, setSearch] = useState("");
+	const [error, setError] = useState("");
+
+	const load = () => getStaffOrders(staffToken(), "delivery", {
+		search: search || undefined,
+		status: status || undefined,
+	})
+		.then((result) => {
+			setData(result);
+			setError("");
+		})
+		.catch((e) => setError(e instanceof ApiError ? e.message : "Assigned deliveries could not be loaded."));
+
+	useEffect(() => {
+		void load();
+	}, [status]);
+
+	return (
+		<StaffShell
+			panel="delivery"
+			title="My deliveries"
+			action={<button onClick={load} className="soft-btn"><RefreshCw size={15} /> Refresh</button>}
+		>
+			<RiderOrderComposer token={staffToken()} onCreated={load} />
+			<div className="mt-5 flex flex-col gap-3 rounded-2xl border border-slate-200 bg-white p-4 sm:flex-row">
+				<div className="flex flex-1 items-center gap-2 rounded-xl border border-slate-200 px-3">
+					<Search size={16} className="text-slate-400" />
+					<input
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
+						onKeyDown={(e) => e.key === "Enter" && load()}
+						className="w-full bg-transparent py-2.5 text-sm outline-none"
+						placeholder="Search order, customer, or area"
+					/>
+				</div>
+				<select value={status} onChange={(e) => setStatus(e.target.value)} className="field sm:max-w-56">
+					<option value="">All assigned</option>
+					{["ASSIGNED_FOR_DELIVERY", "ACCEPTED", "PICKED_UP", "OUT_FOR_DELIVERY", "DELIVERED", "FAILED"].map((value) => (
+						<option key={value}>{value}</option>
+					))}
+				</select>
+				<button onClick={load} className="primary-btn justify-center">Search</button>
+			</div>
+			{error && <p role="alert" className="mt-5 rounded-2xl bg-rose-50 p-4 text-sm font-semibold text-rose-700">{error}</p>}
+			<div className="mt-6 grid gap-4">
+				{data?.items.map((order) => (
+					<Link
+						key={order.id}
+						href={`/delivery/orders/${order.id}`}
+						className="rounded-2xl border border-slate-200 bg-white p-5 transition hover:-translate-y-0.5 hover:border-teal-200 hover:shadow-sm"
+					>
+						<div className="flex flex-wrap items-start justify-between gap-3">
+							<div>
+								<p className="text-lg font-extrabold">{order.orderNumber}</p>
+								<p className="mt-1 text-sm text-slate-600">{order.customerName}{"\u00b7"}{order.customerPhone}</p>
+							</div>
+							<span className="rounded-full bg-teal-50 px-3 py-1 text-[11px] font-extrabold text-teal-800">
+								{order.deliveryStatus ?? order.status}
+							</span>
+						</div>
+						<div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-slate-100 pt-4 text-xs">
+							<span className="flex items-center gap-2 text-slate-500"><Truck size={15} className="text-teal-700" /> {order.paymentMethod}</span>
+							<span className="font-extrabold text-slate-900">Rs. {order.total.toLocaleString("en-IN")}</span>
+							<span className="inline-flex items-center gap-1 font-extrabold text-teal-700"><Eye size={15} /> Open delivery</span>
+						</div>
+					</Link>
+				))}
+				{data?.items.length === 0 && (
+					<div className="rounded-2xl border border-slate-200 bg-white px-6 py-20 text-center">
+						<Truck className="mx-auto text-slate-300" size={38} />
+						<p className="mt-4 font-extrabold">No deliveries assigned to you.</p>
+						<p className="mt-2 text-sm text-slate-500">New assignments will appear here.</p>
+					</div>
+				)}
+			</div>
+		</StaffShell>
+	);
+}

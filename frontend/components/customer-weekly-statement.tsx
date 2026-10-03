@@ -13,9 +13,14 @@ function exportStatement(statement: CustomerStatement) {
 }
 
 export function CustomerWeeklyStatement() {
-  const initialTo = new Date(); const initialFrom = new Date(); initialFrom.setDate(initialFrom.getDate() - 6);
-  const [from, setFrom] = useState(localDate(initialFrom));
-  const [to, setTo] = useState(localDate(initialTo));
+  const [initialRange] = useState(() => {
+    const initialTo = new Date();
+    const initialFrom = new Date();
+    initialFrom.setDate(initialFrom.getDate() - 6);
+    return { from: localDate(initialFrom), to: localDate(initialTo) };
+  });
+  const [from, setFrom] = useState(initialRange.from);
+  const [to, setTo] = useState(initialRange.to);
   const [statement, setStatement] = useState<CustomerStatement | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
@@ -26,7 +31,23 @@ export function CustomerWeeklyStatement() {
     catch (caught) { setError(caught instanceof ApiError ? caught.message : "Your statement could not be loaded."); }
     finally { setLoading(false); }
   };
-  useEffect(() => { void load(); }, []);
+  useEffect(() => {
+    let active = true;
+    const token = localStorage.getItem("anhh-access-token");
+    if (!token) return;
+
+    getMyWeeklyStatement(token, initialRange)
+      .then(result => {
+        if (!active) return;
+        setStatement(result);
+        setError("");
+      })
+      .catch(caught => {
+        if (active) setError(caught instanceof ApiError ? caught.message : "Your statement could not be loaded.");
+      });
+
+    return () => { active = false; };
+  }, [initialRange]);
   return <section className="mt-8 rounded-2xl border border-slate-200 bg-white p-4 shadow-sm sm:p-5"><div className="flex flex-wrap items-start justify-between gap-3"><div><div className="flex items-center gap-2"><FileText size={18} className="text-teal-700" /><h2 className="text-lg font-extrabold">Weekly statement</h2></div><p className="mt-1 text-xs text-slate-500">Your saved order and payment activity for the selected period.</p></div><div className="flex flex-wrap gap-2"><button type="button" onClick={() => window.print()} disabled={!statement} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold disabled:opacity-50"><Printer size={14} />Print</button><button type="button" onClick={() => statement && exportStatement(statement)} disabled={!statement} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border px-3 text-xs font-bold disabled:opacity-50"><Download size={14} />CSV</button></div></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-[1fr_1fr_auto]"><label className="grid gap-1 text-xs font-bold text-slate-600">From<input type="date" value={from} max={to} onChange={event => setFrom(event.target.value)} className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-normal" /></label><label className="grid gap-1 text-xs font-bold text-slate-600">To<input type="date" value={to} min={from} max={localDate(new Date())} onChange={event => setTo(event.target.value)} className="h-10 rounded-xl border border-slate-200 px-3 text-sm font-normal" /></label><button type="button" onClick={load} disabled={loading} className="inline-flex min-h-10 items-center justify-center gap-2 self-end rounded-xl bg-teal-700 px-4 text-sm font-bold text-white disabled:opacity-50">{loading ? <Loader2 size={15} className="animate-spin" /> : <FileText size={15} />}Update</button></div>
     {error && <p role="alert" className="mt-3 rounded-lg bg-rose-50 p-3 text-xs font-semibold text-rose-700">{error}</p>}
