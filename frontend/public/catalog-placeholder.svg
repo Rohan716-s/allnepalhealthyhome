@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 480" role="img" aria-labelledby="title desc">
+  <title id="title">Product image pending verification</title>
+  <desc id="desc">A clean neutral placeholder used until an official product image is verified.</desc>
+  <rect width="640" height="480" fill="#f3f6f8"/>
+  <rect x="176" y="92" width="288" height="260" rx="24" fill="#dbe5eb"/>
+  <path d="M224 160h192v148H224z" fill="#fff"/>
+  <path d="M256 202h128M256 238h128M256 274h80" stroke="#94a8b5" stroke-width="14" stroke-linecap="round"/>
+  <circle cx="440" cy="332" r="38" fill="#0f766e"/>
+  <path d="M440 311v42M419 332h42" stroke="#fff" stroke-width="10" stroke-linecap="round"/>
+</svg>

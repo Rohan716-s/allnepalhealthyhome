@@ -1,0 +1,2 @@
+import { HealthArticleHub } from "@/components/health-article-hub";
+export default function ArticlesPage() { return <main className="mx-auto max-w-7xl px-4 py-12 sm:px-6"><p className="text-xs font-extrabold uppercase tracking-[0.18em] text-teal-700">Health library</p><h1 className="mt-2 text-4xl font-extrabold tracking-tight text-slate-950">Practical health guidance</h1><p className="mt-3 max-w-2xl text-sm leading-6 text-slate-500">Clear, helpful articles from the All Nepal Healthy Home team.</p><div className="mt-8"><HealthArticleHub /></div></main>; }
