@@ -1,0 +1,21 @@
+namespace backend.Contracts;
+
+public sealed record AccountantDashboardResponse(decimal Revenue, decimal Receivables, decimal Payables, decimal Expenses, decimal CashFlow, int InvoiceCount, IReadOnlyList<AccountantTopCustomer> TopCustomers);
+public sealed record AccountantTopCustomer(Guid CustomerId, string CustomerName, decimal Revenue, decimal Outstanding);
+public sealed record AccountantInvoiceResponse(Guid Id, string InvoiceNumber, Guid OrderId, string OrderNumber, Guid CustomerId, string CustomerName, decimal Subtotal, decimal TaxAmount, decimal Total, decimal PaidAmount, decimal DueAmount, string PaymentStatus, DateTime IssuedAt, DateTime? DueAt);
+public sealed record AccountantPaymentResponse(Guid Id, string PaymentNumber, string? InvoiceNumber, string? SupplierInvoiceNumber, string Method, string Status, decimal Amount, DateTime PaymentDate, string? Reference);
+public sealed record AccountantPaymentInput(Guid? InvoiceId, Guid? SupplierInvoiceId, string Method, decimal Amount, DateTime PaymentDate, string? Reference, string? Notes);
+public sealed record SupplierInvoiceResponse(Guid Id, Guid SupplierId, string SupplierName, string InvoiceNumber, DateTime InvoiceDate, DateTime? DueAt, decimal Total, decimal PaidAmount, decimal DueAmount, string Status, string? Notes, Guid? BranchId = null, string? BranchName = null);
+public sealed record SupplierInvoiceInput(Guid SupplierId, string InvoiceNumber, DateTime InvoiceDate, DateTime? DueAt, decimal Subtotal, decimal TaxAmount, string? Notes, Guid? BranchId = null);
+public sealed record ExpenseResponse(Guid Id, string Category, string Description, decimal Amount, DateTime ExpenseDate, string PaymentMethod, string? Reference, string Status, Guid? BranchId = null, string? BranchName = null);
+public sealed record ExpenseInput(string Category, string Description, decimal Amount, DateTime ExpenseDate, string PaymentMethod, string? Reference, string? Notes, Guid? BranchId = null);
+public sealed record LedgerResponse(Guid CustomerId, string CustomerName, string Email, decimal CreditLimit, decimal TotalDebit, decimal TotalCredit, decimal Balance, decimal Overdue, IReadOnlyList<LedgerEntryResponse> Entries);
+public sealed record LedgerEntryResponse(Guid Id, string EntryType, decimal Amount, DateTime EntryDate, DateTime? DueAt, string Description, string? Reference);
+public sealed record ReconciliationResponse(Guid Id, DateTime StatementDate, string BankAccount, string TransactionType, decimal Amount, string Reference, string Status, string? MatchedSource, string? Notes, Guid? BranchId = null, string? BranchName = null);
+public sealed record ReconciliationInput(DateTime StatementDate, string BankAccount, string TransactionType, decimal Amount, string Reference, string? Notes, Guid? BranchId = null);
+public sealed record TaxSettingsResponse(Guid Id, string Name, decimal VatRate, DateTime EffectiveFrom, bool IsActive);
+public sealed record TaxSettingsInput(string Name, decimal VatRate, DateTime EffectiveFrom);
+public sealed record JournalEntryResponse(Guid Id, DateTime EntryDate, string Reference, string Description, string DebitAccount, string CreditAccount, decimal Amount, string Status, Guid? BranchId = null, string? BranchName = null);
+public sealed record JournalEntryInput(DateTime EntryDate, string Reference, string Description, string DebitAccount, string CreditAccount, decimal Amount, string? Notes, Guid? BranchId = null);
+public sealed record AccountBalanceResponse(string Account, decimal Debit, decimal Credit, decimal Balance);
+public sealed record AccountingSummaryResponse(IReadOnlyList<AccountBalanceResponse> TrialBalance, decimal Revenue, decimal Expenses, decimal NetProfit, decimal Receivables, decimal Payables, decimal CashBalance, int PostedEntries);
