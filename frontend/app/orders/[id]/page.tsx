@@ -1,7 +1,6 @@
 "use client";
 
-import Link from "next/link";
-import { ArrowLeft, CheckCircle2, Clock3, Loader2, MapPin, PackageCheck, Truck, Upload, QrCode } from "lucide-react";
+import { CheckCircle2, Clock3, Loader2, MapPin, PackageCheck, Truck, Upload, QrCode } from "lucide-react";
 import { use, useEffect, useState, type ChangeEvent } from "react";
 import { SiteFooter, SiteHeader } from "@/components/site-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -10,6 +9,7 @@ import { ButtonLink } from "@/components/ui/button-link";
 import { Card, CardContent } from "@/components/ui/card";
 import { ApiError, downloadOrderDocument, getCustomerDeliveryTracking, getCustomerOrder, getCustomerOrderDocuments, getOrderPaymentInstructions, resolveMediaUrl, uploadOrderDocument, type DeliveryTrackingSnapshot, type OrderDocument, type PaymentInstructions, type StaffOrder } from "@/services/api";
 import { formatNepalDateTime, formatPlatformDate } from "@/lib/date-time";
+import { BackButton } from "@/components/back-button";
 
 export default function OrderDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = use(params);
@@ -98,7 +98,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   }
   return (
     <div className="min-h-screen bg-[#f8fbfa]"><SiteHeader /><main className="mx-auto max-w-4xl px-4 py-10 sm:px-6 lg:px-8">
-      <Link href="/orders" className="inline-flex items-center gap-2 text-xs font-bold text-slate-500"><ArrowLeft size={15} /> Back to orders</Link>
+      <BackButton fallbackHref="/orders" />
       {loading && <div className="mt-10 text-center"><Loader2 className="mx-auto animate-spin text-teal-700" /></div>}
       {error && <Card className="mt-8 border-rose-200 bg-rose-50"><CardContent className="p-6 text-sm text-rose-800">{error}<div className="mt-4"><ButtonLink href="/login" size="sm">Sign in</ButtonLink></div></CardContent></Card>}
       {order && <>

@@ -25,10 +25,39 @@ function ProductsPageContent() {
   const searchParams = useSearchParams();
   const searchKey = searchParams.toString();
   const [query, setQuery] = useState(""); const [category, setCategory] = useState("All categories"); const [brand, setBrand] = useState("All brands"); const [minPrice, setMinPrice] = useState(""); const [maxPrice, setMaxPrice] = useState(""); const [sort, setSort] = useState("demand"); const [offersOnly, setOffersOnly] = useState(false); const [mobileFilters, setMobileFilters] = useState(false);
-  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]); const [catalogCategories, setCatalogCategories] = useState<CatalogCategory[]>([]); const [catalogBrands, setCatalogBrands] = useState<CatalogBrand[]>([]); const [categoryBrands, setCategoryBrands] = useState<CatalogBrand[]>([]); const [brandLoading, setBrandLoading] = useState(false); const [catalogState, setCatalogState] = useState<"loading" | "connected" | "offline">("loading");
+  const [catalogProducts, setCatalogProducts] = useState<Product[]>([]); const [catalogCategories, setCatalogCategories] = useState<CatalogCategory[]>([]); const [catalogBrands, setCatalogBrands] = useState<CatalogBrand[]>([]); const [categoryBrands, setCategoryBrands] = useState<CatalogBrand[]>([]); const [brandLoading, setBrandLoading] = useState(false); const [catalogState, setCatalogState] = useState<"loading" | "connected" | "offline">("loading"); const [catalogTotal, setCatalogTotal] = useState(0); const [page, setPage] = useState(1); const pageSize = 100;
 
-  useEffect(() => { const controller = new AbortController(); const params = new URLSearchParams(searchKey); const initialSearch = params.get("search")?.trim() || undefined; Promise.allSettled([getProducts({ pageSize: 100, sort: "popular", search: initialSearch }, controller.signal), getCatalogCategories(controller.signal), getCatalogBrands(undefined, controller.signal)]).then(([productsResult, categoriesResult, brandsResult]) => { if (productsResult.status === "fulfilled") { setCatalogProducts(productsResult.value.items.map(fromApiProduct)); setCatalogState("connected"); } else setCatalogState("offline"); if (categoriesResult.status === "fulfilled") setCatalogCategories(categoriesResult.value); if (brandsResult.status === "fulfilled") setCatalogBrands(brandsResult.value); }).catch(() => setCatalogState("offline")); return () => controller.abort(); }, [searchKey]);
+  useEffect(() => {
+    const controller = new AbortController();
+    const params = new URLSearchParams(searchKey);
+    const initialSearch = params.get("search")?.trim() || "";
+    const searchTerm = query.trim() || initialSearch;
+    const initialCategory = params.get("category")?.trim() || "";
+    const requestedCategory = category !== "All categories" ? category : initialCategory || undefined;
+    const initialBrand = params.get("brand")?.trim() || "";
+    const requestedBrand = brand !== "All brands" ? brand : initialBrand || undefined;
+    let active = true;
+    setCatalogState("loading");
+    const timer = window.setTimeout(() => {
+      Promise.allSettled([
+        getProducts({ page, pageSize, sort: "popular", search: searchTerm || undefined, category: requestedCategory, brand: requestedBrand }, controller.signal),
+        getCatalogCategories(controller.signal),
+        getCatalogBrands(undefined, controller.signal),
+      ]).then(([productsResult, categoriesResult, brandsResult]) => {
+        if (!active) return;
+        if (productsResult.status === "fulfilled") {
+          setCatalogProducts(productsResult.value.items.map(fromApiProduct));
+          setCatalogTotal(productsResult.value.totalItems);
+          setCatalogState("connected");
+        } else { setCatalogTotal(0); setCatalogState("offline"); }
+        if (categoriesResult.status === "fulfilled") setCatalogCategories(categoriesResult.value);
+        if (brandsResult.status === "fulfilled") setCatalogBrands(brandsResult.value);
+      }).catch(() => { if (active) setCatalogState("offline"); });
+    }, searchTerm ? 250 : 0);
+    return () => { active = false; window.clearTimeout(timer); controller.abort(); };
+  }, [brand, category, page, query, searchKey]);
   useEffect(() => { const params = new URLSearchParams(searchKey); setQuery(params.get("search") ?? ""); setCategory(params.get("category") ?? "All categories"); setBrand(params.get("brand") ?? "All brands"); setOffersOnly(params.get("filter") === "offers"); }, [searchKey]);
+  useEffect(() => { setPage(1); }, [brand, category, maxPrice, minPrice, offersOnly, query, searchKey]);
 
   const selectedCategory = useMemo(() => category === "All categories" ? undefined : catalogCategories.find((item) => matchesCatalogFilter(item.slug, category, "All categories") || matchesCatalogFilter(item.name, category, "All categories")), [catalogCategories, category]);
   useEffect(() => { if (selectedCategory && category !== selectedCategory.slug) setCategory(selectedCategory.slug); }, [category, selectedCategory]);
@@ -38,6 +67,7 @@ function ProductsPageContent() {
   useEffect(() => { if (brand !== "All brands" && brandOptions.length > 0 && !brandOptions.some((item) => matchesCatalogFilter(item.value, brand, "All brands") || matchesCatalogFilter(item.label, brand, "All brands"))) setBrand("All brands"); }, [brand, brandOptions]);
 
   const pricesVisible = catalogProducts.some((product) => product.pricesVisible !== false);
+  const totalPages = Math.max(1, Math.ceil((catalogTotal || catalogProducts.length) / pageSize));
   const filteredProducts = useMemo(() => { const normalized = query.trim().toLowerCase(); const minimum = minPrice === "" ? undefined : Number(minPrice); const maximum = maxPrice === "" ? undefined : Number(maxPrice); const result = catalogProducts.filter((product) => { const searchable = [product.name, product.genericName, product.brand, product.category, product.sku]; return (!normalized || searchable.some((field) => field.toLowerCase().includes(normalized))) && matchesCatalogFilter(product.category, category, "All categories") && matchesCatalogFilter(product.brand, brand, "All brands") && (!pricesVisible || (minimum === undefined || Number.isNaN(minimum) || product.price >= minimum) && (maximum === undefined || Number.isNaN(maximum) || product.price <= maximum) && (!offersOnly || Boolean(product.mrp))); }); return [...result].sort((a, b) => sort === "demand" ? (b.demandScore ?? 0) - (a.demandScore ?? 0) || Number(Boolean(b.featured)) - Number(Boolean(a.featured)) || a.name.localeCompare(b.name) : pricesVisible && sort === "price-low" ? a.price - b.price : pricesVisible && sort === "price-high" ? b.price - a.price : sort === "name" ? a.name.localeCompare(b.name) : Number(Boolean(b.featured)) - Number(Boolean(a.featured))); }, [catalogProducts, query, category, brand, minPrice, maxPrice, sort, offersOnly, pricesVisible]);
   function clearFilters() { setCategory("All categories"); setBrand("All brands"); setMinPrice(""); setMaxPrice(""); setOffersOnly(false); setQuery(""); }
 
@@ -114,11 +144,16 @@ function ProductsPageContent() {
               </label>
             </div>
             <p className="mb-5 text-sm font-semibold text-slate-400">
-              {t("catalog.showing", { shown: filteredProducts.length, total: catalogProducts.length })}
+              {catalogState === "loading" ? "Loading products…" : t("catalog.showing", { shown: filteredProducts.length, total: catalogTotal || catalogProducts.length })}
             </p>
             {filteredProducts.length ? (
               <div className="grid grid-cols-2 gap-4 md:grid-cols-3">
                 {filteredProducts.map((product) => <ProductCard key={product.id} product={product} />)}
+              </div>
+            ) : catalogState === "loading" ? (
+              <div role="status" className="surface px-6 py-20 text-center">
+                <div className="mx-auto h-10 w-10 animate-pulse rounded-full bg-teal-100" />
+                <span className="sr-only">Loading products…</span>
               </div>
             ) : (
               <div className="surface px-6 py-20 text-center">
@@ -129,6 +164,11 @@ function ProductsPageContent() {
                 <p className="mt-2 text-sm text-slate-500">{t("catalog.noProductsDescription")}</p>
               </div>
             )}
+            {catalogState === "connected" && totalPages > 1 && <nav aria-label="Product pages" className="mt-8 flex items-center justify-center gap-4">
+              <button type="button" className="soft-btn disabled:cursor-not-allowed disabled:opacity-40" disabled={page <= 1} onClick={() => setPage((current) => Math.max(1, current - 1))}>Previous</button>
+              <span className="text-sm font-bold text-slate-600">Page {page} of {totalPages}</span>
+              <button type="button" className="soft-btn disabled:cursor-not-allowed disabled:opacity-40" disabled={page >= totalPages} onClick={() => setPage((current) => Math.min(totalPages, current + 1))}>Next</button>
+            </nav>}
           </section>
         </div>
       </main>

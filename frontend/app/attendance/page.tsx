@@ -32,6 +32,7 @@ import { useSiteConfig } from "@/components/site-config-provider";
 import { formatKathmanduTime } from "@/lib/hrms-date-time";
 import { formatPlatformDate } from "@/lib/date-time";
 import { AccountProfileMenu } from "@/components/account-profile-menu";
+import { BackButton } from "@/components/back-button";
 
 function time(value?: string) {
   return formatKathmanduTime(value);
@@ -44,6 +45,24 @@ function statusLabel(status?: string) {
     .replaceAll("_", " ")
     .toLowerCase()
     .replace(/(^|\s)\S/g, (letter) => letter.toUpperCase());
+}
+function attendanceHome(role?: string) {
+  switch (role?.toUpperCase()) {
+    case "DELIVERY":
+      return "/delivery";
+    case "SALES_EXECUTIVE":
+      return "/sales-executive";
+    case "ACCOUNTANT":
+      return "/accounts";
+    case "SUPERVISOR":
+      return "/supervisor";
+    case "ADMIN":
+      return "/admin";
+    case "SUPERADMIN":
+      return "/superadmin";
+    default:
+      return "/pharmacist";
+  }
 }
 
 export default function AttendancePage() {
@@ -146,6 +165,7 @@ export default function AttendancePage() {
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-6 sm:px-6 lg:px-10">
       <div className="mx-auto max-w-7xl">
+        <BackButton fallbackHref={attendanceHome(user?.role)} />
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#003893]">

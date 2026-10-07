@@ -504,8 +504,12 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.CompanyCode).HasMaxLength(80);
             entity.Property(x => x.CompanyName).HasMaxLength(240);
             entity.Property(x => x.ImageSourceUrl).HasMaxLength(1000);
+            entity.Property(x => x.ImageSourceWebsite).HasMaxLength(240);
+            entity.Property(x => x.ImageSourcePageUrl).HasMaxLength(1000);
             entity.Property(x => x.ImageVerificationStatus).HasMaxLength(40).IsRequired().HasDefaultValue("MISSING");
             entity.Property(x => x.ImageSourceReference).HasMaxLength(500);
+            entity.Property(x => x.ImageMatchingNotes).HasMaxLength(2000);
+            entity.HasIndex(x => x.ImageMediaAssetId);
             entity.Property(x => x.DemandScore).HasPrecision(5, 2);
             entity.Property(x => x.DemandBasis).HasMaxLength(80).IsRequired().HasDefaultValue("NO_HISTORY");
             entity.Property(x => x.DemandSourceUrl).HasMaxLength(1000);
@@ -1022,6 +1026,13 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.Property(x => x.Url).HasMaxLength(500).IsRequired();
             entity.Property(x => x.AltText).HasMaxLength(240);
             entity.Property(x => x.BackgroundRemoved).HasDefaultValue(false);
+            entity.Property(x => x.SourceUrl).HasMaxLength(1000);
+            entity.Property(x => x.SourceWebsite).HasMaxLength(240);
+            entity.Property(x => x.SourcePageUrl).HasMaxLength(1000);
+            entity.Property(x => x.VerificationStatus).HasMaxLength(40).IsRequired().HasDefaultValue("MISSING");
+            entity.Property(x => x.MatchingNotes).HasMaxLength(2000);
+            entity.Property(x => x.MissingImageStatus).HasMaxLength(40).IsRequired().HasDefaultValue("MISSING");
+            entity.HasIndex(x => x.MediaAssetId);
             entity.HasIndex(x => new { x.ProductId, x.DisplayOrder }).IsUnique();
             entity.HasOne(x => x.Product).WithMany(x => x.Images).HasForeignKey(x => x.ProductId).OnDelete(DeleteBehavior.Cascade);
         });

@@ -87,6 +87,9 @@ const blank = {
   imageSourceUrl: "",
   imageVerificationStatus: "MISSING",
   imageSourceReference: "",
+  imageSourceWebsite: "",
+  imageSourcePageUrl: "",
+  imageMatchingNotes: "",
   demandScore: "0",
   demandBasis: "NO_HISTORY",
   demandSourceUrl: "",
@@ -498,6 +501,9 @@ export function AdminProductFormPage({
             imageSourceUrl: product.imageSourceUrl ?? "",
             imageVerificationStatus: product.imageVerificationStatus ?? "MISSING",
             imageSourceReference: product.imageSourceReference ?? "",
+            imageSourceWebsite: product.imageSourceWebsite ?? "",
+            imageSourcePageUrl: product.imageSourcePageUrl ?? "",
+            imageMatchingNotes: product.imageMatchingNotes ?? "",
             demandScore: String(product.demandScore ?? 0),
             demandBasis: product.demandBasis ?? "NO_HISTORY",
             demandSourceUrl: product.demandSourceUrl ?? "",
@@ -583,6 +589,10 @@ export function AdminProductFormPage({
         imageSourceUrl: form.imageSourceUrl || undefined,
         imageVerificationStatus: form.imageVerificationStatus,
         imageSourceReference: form.imageSourceReference || undefined,
+        imageSourceWebsite: form.imageSourceWebsite || undefined,
+        imageSourcePageUrl: form.imageSourcePageUrl || undefined,
+        imageSearchedAtUtc: new Date().toISOString(),
+        imageMatchingNotes: form.imageMatchingNotes || undefined,
         demandScore: Number(form.demandScore) || 0,
         demandBasis: form.demandBasis,
         demandSourceUrl: form.demandSourceUrl || undefined,
@@ -809,7 +819,7 @@ export function AdminProductFormPage({
                     </div>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
                       {images.map((image, index) => <div key={`${image.preview}-${index}`} className="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                        <img src={image.file ? image.preview : resolveMediaUrl(image.preview)} alt={`Product image ${index + 1}`} className="aspect-square h-full w-full object-contain p-2 mix-blend-multiply" />
+                        <img src={image.file ? image.preview : resolveMediaUrl(image.preview)} alt={`Product image ${index + 1}`} onError={(event) => { const target = event.currentTarget; if (target.dataset.fallback) return; target.dataset.fallback = "true"; target.src = "/catalog-placeholder.svg"; }} className="aspect-square h-full w-full object-contain p-2 mix-blend-multiply" />
                         <div className="absolute inset-x-1 bottom-1 flex justify-between gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
                           <Button type="button" variant="secondary" size="icon-sm" disabled={index === 0} onClick={() => moveImage(index, -1)} aria-label={`Move image ${index + 1} left`}><ArrowUp size={14} /></Button>
                           <Button type="button" variant="secondary" size="icon-sm" disabled={index === images.length - 1} onClick={() => moveImage(index, 1)} aria-label={`Move image ${index + 1} right`}><ArrowDown size={14} /></Button>
@@ -880,9 +890,12 @@ export function AdminProductFormPage({
               <CardContent className="grid gap-4 sm:grid-cols-2">
                 <div className="grid gap-2"><Label htmlFor="product-company-code">Company code</Label><Input id="product-company-code" value={form.companyCode} onChange={event => setField("companyCode", event.target.value)} /></div>
                 <div className="grid gap-2"><Label htmlFor="product-company-name">Company name</Label><Input id="product-company-name" value={form.companyName} onChange={event => setField("companyName", event.target.value)} /></div>
-                <div className="grid gap-2"><Label htmlFor="product-image-source">Official image source URL</Label><Input id="product-image-source" type="url" value={form.imageSourceUrl} onChange={event => setField("imageSourceUrl", event.target.value)} placeholder="Leave blank until verified" /></div>
+                <div className="grid gap-2"><Label htmlFor="product-image-source">Exact image URL</Label><Input id="product-image-source" type="url" value={form.imageSourceUrl} onChange={event => setField("imageSourceUrl", event.target.value)} placeholder="Leave blank until verified" /></div>
+                <div className="grid gap-2"><Label htmlFor="product-image-website">Source website</Label><Input id="product-image-website" value={form.imageSourceWebsite} onChange={event => setField("imageSourceWebsite", event.target.value)} placeholder="manufacturer.example" /></div>
+                <div className="grid gap-2 sm:col-span-2"><Label htmlFor="product-image-page">Source product page URL</Label><Input id="product-image-page" type="url" value={form.imageSourcePageUrl} onChange={event => setField("imageSourcePageUrl", event.target.value)} placeholder="Exact product listing or manufacturer page" /></div>
                 <div className="grid gap-2"><Label htmlFor="product-image-status">Image verification status</Label><Select id="product-image-status" value={form.imageVerificationStatus} onChange={event => setField("imageVerificationStatus", event.target.value)}><option value="MISSING">Missing / not verified</option><option value="VERIFIED_OFFICIAL">Verified official</option><option value="UNVERIFIED">Unverified</option></Select></div>
                 <div className="grid gap-2 sm:col-span-2"><Label htmlFor="product-image-reference">Image source notes</Label><Input id="product-image-reference" value={form.imageSourceReference} onChange={event => setField("imageSourceReference", event.target.value)} placeholder="Manufacturer page, catalog reference, or verification note" /></div>
+                <div className="grid gap-2 sm:col-span-2"><Label htmlFor="product-image-match-notes">Exact-match notes</Label><Input id="product-image-match-notes" value={form.imageMatchingNotes} onChange={event => setField("imageMatchingNotes", event.target.value)} placeholder="Confirm brand, strength, pack size, form, and packaging design" /></div>
                 <div className="grid gap-2"><Label htmlFor="product-demand-score">Demand score (0–100)</Label><Input id="product-demand-score" type="number" min="0" max="100" step="0.01" value={form.demandScore} onChange={event => setField("demandScore", event.target.value)} /></div>
                 <div className="grid gap-2"><Label htmlFor="product-display-order">Manual display order</Label><Input id="product-display-order" type="number" min="0" step="1" value={form.displayOrder} onChange={event => setField("displayOrder", event.target.value)} /></div>
                 <div className="grid gap-2"><Label htmlFor="product-demand-basis">Demand basis</Label><Select id="product-demand-basis" value={form.demandBasis} onChange={event => setField("demandBasis", event.target.value)}><option value="NO_HISTORY">No sales/research evidence</option><option value="SALES_HISTORY">Website sales history</option><option value="MARKET_RESEARCH_PROXY">Market research proxy</option></Select></div>

@@ -8,6 +8,7 @@ import { CalendarDays, CalendarPlus, ClipboardList, Send } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { AccountProfileMenu } from "@/components/account-profile-menu";
+import { BackButton } from "@/components/back-button";
 import { staffToken, staffUser } from "@/components/staff-shell";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -83,6 +84,7 @@ export default function LeavePage() {
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-6 sm:px-6 lg:px-10">
       <div className="mx-auto max-w-7xl">
+        <BackButton fallbackHref="/attendance" />
         <header className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-amber-700">HRMS · Staff workspace</p>

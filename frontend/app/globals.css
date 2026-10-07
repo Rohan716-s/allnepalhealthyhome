@@ -1149,6 +1149,16 @@ html.dark .confirmation-modal-content,
 .site-color-dark .messages-select-empty span {
   color: #93c5fd !important;
 }
+.site-color-dark .site-header-outline-control {
+  background-color: #111827 !important;
+  border-color: #60a5fa !important;
+  color: #bfdbfe !important;
+}
+.site-color-dark .site-header-outline-control:hover {
+  background-color: #1d4ed8 !important;
+  border-color: #93c5fd !important;
+  color: #ffffff !important;
+}
 .site-color-dark .messages-thread-panel .border-slate-200,
 .site-color-dark .messages-sidebar .border-slate-200 {
   border-color: #334155 !important;

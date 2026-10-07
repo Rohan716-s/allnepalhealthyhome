@@ -472,9 +472,16 @@ public sealed class Product : AuditedEntity
     public decimal Mrp { get; set; }
     public decimal SellingPrice { get; set; }
     public string? ImageUrl { get; set; }
+    /// <summary>The exact remote asset URL from which the managed image was obtained.</summary>
     public string? ImageSourceUrl { get; set; }
+    public string? ImageSourceWebsite { get; set; }
+    public string? ImageSourcePageUrl { get; set; }
     public string ImageVerificationStatus { get; set; } = "MISSING";
     public string? ImageSourceReference { get; set; }
+    public DateTime? ImageSearchedAtUtc { get; set; }
+    public string? ImageMatchingNotes { get; set; }
+    /// <summary>Managed media asset backing <see cref="ImageUrl"/>, when the URL uses the media API.</summary>
+    public Guid? ImageMediaAssetId { get; set; }
     public string? CompanyCode { get; set; }
     public string? CompanyName { get; set; }
     public decimal DemandScore { get; set; }
@@ -543,6 +550,14 @@ public sealed class ProductImage : AuditedEntity
     public int DisplayOrder { get; set; }
     public string? AltText { get; set; }
     public bool BackgroundRemoved { get; set; }
+    public string? SourceUrl { get; set; }
+    public string? SourceWebsite { get; set; }
+    public string? SourcePageUrl { get; set; }
+    public string VerificationStatus { get; set; } = "MISSING";
+    public DateTime? SearchedAtUtc { get; set; }
+    public string? MatchingNotes { get; set; }
+    public string MissingImageStatus { get; set; } = "MISSING";
+    public Guid? MediaAssetId { get; set; }
     public Product? Product { get; set; }
 }
 

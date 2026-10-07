@@ -1056,6 +1056,11 @@ export type AdminProduct = {
   imageSourceUrl?: string;
   imageVerificationStatus: string;
   imageSourceReference?: string;
+  imageSourceWebsite?: string;
+  imageSourcePageUrl?: string;
+  imageSearchedAtUtc?: string;
+  imageMatchingNotes?: string;
+  imageMediaAssetId?: string;
   demandScore: number;
   demandBasis: string;
   demandSourceUrl?: string;
@@ -4329,6 +4334,11 @@ export function createAdminProduct(
     imageSourceUrl?: string;
     imageVerificationStatus?: string;
     imageSourceReference?: string;
+    imageSourceWebsite?: string;
+    imageSourcePageUrl?: string;
+    imageSearchedAtUtc?: string;
+    imageMatchingNotes?: string;
+    imageMediaAssetId?: string;
     demandScore?: number;
     demandBasis?: string;
     demandSourceUrl?: string;
@@ -4373,6 +4383,11 @@ export function updateAdminProduct(
     imageSourceUrl?: string;
     imageVerificationStatus?: string;
     imageSourceReference?: string;
+    imageSourceWebsite?: string;
+    imageSourcePageUrl?: string;
+    imageSearchedAtUtc?: string;
+    imageMatchingNotes?: string;
+    imageMediaAssetId?: string;
     demandScore?: number;
     demandBasis?: string;
     demandSourceUrl?: string;

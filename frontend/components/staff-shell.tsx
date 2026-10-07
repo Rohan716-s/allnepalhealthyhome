@@ -43,6 +43,7 @@ import { resolveSidebarIcon } from "@/lib/sidebar-icons";
 import { useManagementTheme } from "@/components/management-theme-provider";
 import { useSiteConfig } from "@/components/site-config-provider";
 import { AccountProfileMenu } from "@/components/account-profile-menu";
+import { BackButton } from "@/components/back-button";
 import { MessagingLink } from "@/components/messaging-link";
 import { isProfileOrLogoutSidebarItem } from "@/lib/sidebar-navigation";
 import { RiderAvailabilityControl } from "@/components/rider-availability-control";
@@ -154,11 +155,13 @@ export function StaffShell({
   children,
   title,
   action,
+  backHref,
 }: {
   panel: Panel;
   children: ReactNode;
   title?: string;
   action?: ReactNode;
+  backHref?: string;
 }) {
   const pathname = usePathname();
   const router = useRouter();
@@ -173,6 +176,14 @@ export function StaffShell({
   const { theme } = useManagementTheme();
   const { design } = useSiteConfig();
   const rightNavigation = design.sideNavPosition === "RIGHT";
+  const detailBackHref = pathname.startsWith("/delivery/orders/")
+    ? "/delivery/orders"
+    : pathname.startsWith("/pharmacist/orders/")
+      ? "/pharmacist/orders"
+      : pathname.startsWith("/pharmacist/prescriptions/")
+        ? "/pharmacist/prescriptions"
+        : undefined;
+  const resolvedBackHref = backHref ?? detailBackHref;
   const links = panel === "pharmacist" ? pharmacistLinks : panel === "delivery" ? deliveryLinks : panel === "sales-executive" ? salesExecutiveLinks : accountantLinks;
   const homePath = panel === "pharmacist" ? "/pharmacist" : panel === "delivery" ? "/delivery" : panel === "sales-executive" ? "/sales-executive" : "/accounts";
   const collapsedStorageKey = `anhh-${panel}-sidebar-collapsed`;
@@ -448,6 +459,7 @@ export function StaffShell({
         <main className="mx-auto max-w-7xl px-4 py-7 sm:px-8">
           <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
             <div>
+              {resolvedBackHref && <BackButton fallbackHref={resolvedBackHref} />}
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-teal-700">
                 {panel === "pharmacist" ? "Pharmacist panel" : panel === "delivery" ? "Delivery panel" : panel === "sales-executive" ? "Sales Executive panel" : "Accountant panel"}
               </p>
@@ -457,7 +469,7 @@ export function StaffShell({
                 </h1>
               )}
             </div>
-            {action}
+            {!resolvedBackHref && action}
           </div>
           {panel === "delivery" && <RiderAvailabilityControl />}
           {children}

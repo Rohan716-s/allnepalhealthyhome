@@ -1069,7 +1069,7 @@ export function SiteHeader({ hero = false }: { hero?: boolean }) {
                   cancelClose();
                   setOpenMenu(compactCategoriesKey);
                 }}
-                className="h-11 shrink-0 rounded-full border-2 border-[#003893] bg-white px-4 text-sm font-bold text-[#003893] shadow-sm transition-colors duration-200 hover:border-[#003893] hover:bg-[#003893] hover:text-white"
+                className="site-header-outline-control h-11 shrink-0 rounded-full border-2 border-[#003893] bg-white px-4 text-sm font-bold text-[#003893] shadow-sm transition-colors duration-200 hover:border-[#003893] hover:bg-[#003893] hover:text-white"
                 aria-haspopup="menu"
                 aria-expanded={openMenu === compactCategoriesKey}
               >
@@ -1134,7 +1134,7 @@ export function SiteHeader({ hero = false }: { hero?: boolean }) {
                   cancelClose();
                   setOpenMenu(compactBrandsKey);
                 }}
-                className="h-11 shrink-0 rounded-full border-2 border-[#003893] bg-white px-4 text-sm font-bold text-[#003893] shadow-sm transition-colors duration-200 hover:border-[#003893] hover:bg-[#003893] hover:text-white"
+                className="site-header-outline-control h-11 shrink-0 rounded-full border-2 border-[#003893] bg-white px-4 text-sm font-bold text-[#003893] shadow-sm transition-colors duration-200 hover:border-[#003893] hover:bg-[#003893] hover:text-white"
                 aria-haspopup="menu"
                 aria-expanded={openMenu === compactBrandsKey}
               >
@@ -1179,13 +1179,13 @@ export function SiteHeader({ hero = false }: { hero?: boolean }) {
             </div>
             <Link
               href="/track-order"
-              className="hidden h-11 shrink-0 items-center rounded-full border-2 border-[#003893] bg-white px-4 text-sm font-bold text-[#003893] shadow-sm transition-colors duration-200 hover:border-[#003893] hover:bg-[#003893] hover:text-white 2xl:inline-flex"
+              className="site-header-outline-control hidden h-11 shrink-0 items-center rounded-full border-2 border-[#003893] bg-white px-4 text-sm font-bold text-[#003893] shadow-sm transition-colors duration-200 hover:border-[#003893] hover:bg-[#003893] hover:text-white 2xl:inline-flex"
             >
               Track order
             </Link>
             <Link
               href="/articles"
-              className="hidden h-11 shrink-0 items-center rounded-full border-2 border-[#003893] bg-white px-4 text-sm font-bold text-[#003893] shadow-sm transition-colors duration-200 hover:border-[#003893] hover:bg-[#003893] hover:text-white 2xl:inline-flex"
+              className="site-header-outline-control hidden h-11 shrink-0 items-center rounded-full border-2 border-[#003893] bg-white px-4 text-sm font-bold text-[#003893] shadow-sm transition-colors duration-200 hover:border-[#003893] hover:bg-[#003893] hover:text-white 2xl:inline-flex"
             >
               <FileText size={16} />
               {t("nav.articles")}
@@ -1194,7 +1194,7 @@ export function SiteHeader({ hero = false }: { hero?: boolean }) {
               <ButtonLink
                 href="/products"
                 variant="outline"
-                className="h-11 shrink-0 rounded-full border-2 border-[#003893] px-5 font-bold text-[#003893] hover:bg-[#003893] hover:text-white"
+                className="site-header-outline-control h-11 shrink-0 rounded-full border-2 border-[#003893] px-5 font-bold text-[#003893] hover:bg-[#003893] hover:text-white"
               >
                 Shop Now
               </ButtonLink>

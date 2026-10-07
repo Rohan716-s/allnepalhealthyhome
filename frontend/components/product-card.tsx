@@ -151,7 +151,7 @@ export function ProductCard({ product }: { product: Product }) {
             <FileText /> {t("product.rxRequired")}
           </ButtonLink>
         ) : (
-          <Button size="sm" onClick={(event) => addToCart(product.id, 1, undefined, event.currentTarget)}>
+          <Button size="sm" onClick={(event) => addToCart(product.id, 1, undefined, event.currentTarget, product)}>
             <ShoppingBag /> {productCopy.buttonLabel || (bulkRequired ? copy.bulkMode : copy.addToCart) || t("product.add")}
           </Button>
         )}

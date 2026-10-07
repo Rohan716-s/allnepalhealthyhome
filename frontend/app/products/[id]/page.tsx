@@ -1,9 +1,7 @@
 "use client";
 
-import Link from "next/link";
 import { use, useEffect, useMemo, useState } from "react";
 import {
-  ArrowLeft,
   Heart,
   Loader2,
   Minus,
@@ -14,6 +12,7 @@ import {
 } from "lucide-react";
 import { ProductCard } from "@/components/product-card";
 import { ProductImageCarousel } from "@/components/product-image-carousel";
+import { BackButton } from "@/components/back-button";
 import { SiteFooter, SiteHeader } from "@/components/site-header";
 import { useShop } from "@/components/shop-provider";
 import { Button } from "@/components/ui/button";
@@ -127,16 +126,13 @@ export default function ProductDetailPage({
       <div className="min-h-screen bg-[#f8fbfa]">
         <SiteHeader />
         <main className="mx-auto max-w-3xl px-4 py-24 text-center">
+          <div className="mb-6 text-left">
+            <BackButton fallbackHref="/products" />
+          </div>
           <h1 className="text-2xl font-extrabold">Product not found</h1>
           <p className="mt-2 text-sm text-slate-500">
             {error || "This product is no longer available."}
           </p>
-          <Link
-            href="/products"
-            className="mt-5 inline-flex items-center gap-2 text-sm font-bold text-teal-700"
-          >
-            Back to catalogue <ArrowLeft size={14} />
-          </Link>
         </main>
         <SiteFooter />
       </div>
@@ -155,12 +151,7 @@ export default function ProductDetailPage({
     <div className="min-h-screen bg-[#f8fbfa]">
       <SiteHeader />
       <main className="mx-auto max-w-7xl px-4 py-8 sm:px-6 lg:px-8">
-        <Link
-          href="/products"
-          className="mb-7 inline-flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-teal-700"
-        >
-          <ArrowLeft size={15} /> Back to medicines
-        </Link>
+        <BackButton fallbackHref="/products" />
         <div className="grid gap-8 lg:grid-cols-2">
           <div>
             <ProductImageCarousel images={product.imageUrls?.length ? product.imageUrls : product.imageUrl ? [product.imageUrl] : []} alt={productName} />

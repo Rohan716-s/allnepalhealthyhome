@@ -8,7 +8,7 @@ Nepal-focused online pharmacy and healthcare e-commerce platform. The repository
 - `backend/` — ASP.NET Core Web API, EF Core, MySQL provider, Swagger, health checks, and error handling.
 - `infrastructure/` — reserved for future deployment scripts and infrastructure notes.
 - `docs/` — project documentation.
-- `docker-compose.yml` — local MySQL, Redis, and Meilisearch services.
+- `docker-compose.yml` — the frontend, backend, MySQL, Redis, and Meilisearch services.
 
 ## Required software
 
@@ -39,20 +39,30 @@ $env:ConnectionStrings__DefaultConnection = "Server=localhost;Port=3306;Database
 
 For a real environment, replace `change_me` with a secret that is kept outside source control.
 
-## Start local services
+## Start the complete application with Docker
 
 Start Docker Desktop, then run:
 
 ```powershell
-docker compose up -d
+docker compose up -d --build
 docker compose ps
 ```
 
-This starts MySQL on `localhost:3306`, Redis on `localhost:6379`, and Meilisearch on `localhost:7700`, with persistent named volumes.
+Open <http://localhost:3001>. The frontend is served by Next.js, so nested application routes continue to work when opened or refreshed directly. The frontend proxies `/api/*` and `/hubs/*` to the backend service over the Compose network; the browser does not need to resolve a container hostname. Port 3001 keeps the Docker app separate from the local `npm run dev` server on port 3000.
+
+The backend is available at <http://localhost:5000> and reports its database-aware readiness at <http://localhost:5000/healthz>. MySQL, Redis, and Meilisearch are available on ports 3306, 6379, and 7700. MySQL data remains in its named volume, and backend uploads/backups remain under `backend/App_Data`. Compose waits for MySQL to become healthy before starting the API and for the API (including its MySQL check) to become healthy before starting the frontend. Migrations and seeding remain disabled on startup, preserving the existing database.
+
+After changing source code, rebuild the app images with `docker compose up -d --build`. For a normal restart of already-built images, `docker compose up -d` is sufficient. Set `FRONTEND_PORT` or `BACKEND_PORT` in `.env` if those host ports are already in use.
 
 ## Run the backend
 
-In a PowerShell window:
+For the existing local development workflow, start only the supporting services:
+
+```powershell
+docker compose up -d mysql redis meilisearch
+```
+
+Then, in a PowerShell window:
 
 ```powershell
 cd backend
@@ -69,14 +79,14 @@ dotnet run --urls http://localhost:5000
 
 ## Run the frontend
 
-In another PowerShell window:
+In another PowerShell window, start the Next.js development server:
 
 ```powershell
 cd frontend
 npm run dev
 ```
 
-Open <http://localhost:3000>. The page calls the backend health endpoint and reports the real connection state.
+Open <http://localhost:3000>. The page calls the backend health endpoint and reports the real connection state. Keep using `npm run dev` and `dotnet run` for development; the Compose frontend/backend are built containers for a complete one-command local launch.
 
 For a production build, the frontend uses Next's standalone server so direct routes remain route-aware after a browser refresh. From `frontend`, run `npm run build`, set `PORT=3000`, and run `npm start`. The start helper copies the required `public` and `.next/static` assets into the standalone runtime before launching it. Do not serve the generated files through a generic static fallback server; that would replace routes such as `/products`, `/cart`, or `/admin` with the homepage.
 

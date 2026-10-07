@@ -10,7 +10,9 @@ WORKDIR /app
 ENV ASPNETCORE_URLS=http://+:8080
 EXPOSE 8080
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends tesseract-ocr tesseract-ocr-eng tesseract-ocr-nep poppler-utils \
+    && apt-get install -y --no-install-recommends curl tesseract-ocr tesseract-ocr-eng tesseract-ocr-nep poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 COPY --from=build /app/publish .
+HEALTHCHECK --interval=10s --timeout=5s --start-period=45s --retries=6 \
+    CMD curl --fail --silent --show-error http://localhost:8080/healthz || exit 1
 ENTRYPOINT ["dotnet", "backend.dll"]

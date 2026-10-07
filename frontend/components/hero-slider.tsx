@@ -474,7 +474,7 @@ export function HeroSlider({
               <div className="grid gap-2 sm:grid-cols-3">
                 {trendingProducts.slice(0, 3).map((product) => (
                   <Link key={product.id} href={`/products/${product.slug}`} className="group flex min-w-0 items-center gap-2 rounded-xl border border-slate-200 bg-white/80 p-2 text-left transition hover:-translate-y-0.5 hover:border-[var(--color-primary)] hover:bg-white">
-                    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-50"><img src={resolveMediaUrl(product.imageUrls?.[0] ?? product.imageUrl)} alt="" className="h-full w-full object-contain p-1 mix-blend-multiply" /></span>
+                    <span className="grid h-10 w-10 shrink-0 place-items-center overflow-hidden rounded-lg bg-slate-50"><img src={resolveMediaUrl(product.imageUrls?.[0] ?? product.imageUrl)} alt="" onError={(event) => { const image = event.currentTarget; if (image.dataset.fallback) return; image.dataset.fallback = "true"; image.src = "/catalog-placeholder.svg"; }} className="h-full w-full object-contain p-1 mix-blend-multiply" /></span>
                     <span className="min-w-0"><span className="block truncate text-[11px] font-extrabold text-slate-800 group-hover:text-[var(--color-primary)]">{product.name}</span>{product.pricesVisible !== false && Number.isFinite(product.sellingPrice) && product.sellingPrice > 0 && <span className="mt-0.5 block text-[10px] font-bold text-slate-500">NPR {product.sellingPrice.toLocaleString("en-NP")}</span>}</span>
                   </Link>
                 ))}

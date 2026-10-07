@@ -4302,6 +4302,24 @@ namespace backend.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("varchar(1000)");
 
+                    b.Property<string>("ImageSourceWebsite")
+                        .HasMaxLength(240)
+                        .HasColumnType("varchar(240)");
+
+                    b.Property<string>("ImageSourcePageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<DateTime?>("ImageSearchedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ImageMatchingNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<Guid?>("ImageMediaAssetId")
+                        .HasColumnType("char(36)");
+
                     b.Property<string>("ImageUrl")
                         .HasColumnType("longtext");
 
@@ -4440,6 +4458,8 @@ namespace backend.Migrations
 
                     b.HasIndex("RackId");
 
+                    b.HasIndex("ImageMediaAssetId");
+
                     b.HasIndex("ReorderLevel");
 
                     b.HasIndex("Sku")
@@ -4476,8 +4496,37 @@ namespace backend.Migrations
                     b.Property<int>("DisplayOrder")
                         .HasColumnType("int");
 
+                    b.Property<string>("MatchingNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<Guid?>("MediaAssetId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("MissingImageStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasDefaultValue("MISSING");
+
                     b.Property<Guid>("ProductId")
                         .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("SearchedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("SourcePageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("SourceUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("SourceWebsite")
+                        .HasMaxLength(240)
+                        .HasColumnType("varchar(240)");
 
                     b.Property<DateTime>("UpdatedAt")
                         .HasColumnType("datetime(6)");
@@ -4487,7 +4536,16 @@ namespace backend.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
+                    b.Property<string>("VerificationStatus")
+                        .IsRequired()
+                        .ValueGeneratedOnAdd()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)")
+                        .HasDefaultValue("MISSING");
+
                     b.HasKey("Id");
+
+                    b.HasIndex("MediaAssetId");
 
                     b.HasIndex("ProductId", "DisplayOrder")
                         .IsUnique();
