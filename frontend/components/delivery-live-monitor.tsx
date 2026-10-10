@@ -47,8 +47,17 @@ export function DeliveryLiveMonitor({ superAdmin = false, supervisor = false }: 
     void refresh();
     const timer = window.setInterval(() => {
       if (!document.hidden) void refresh();
-    }, 20000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    }, 10000);
+    const refreshLive = () => { void refresh(); };
+    const refreshVisible = () => { if (!document.hidden) void refresh(); };
+    window.addEventListener("anhh-delivery-location-changed", refreshLive);
+    document.addEventListener("visibilitychange", refreshVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("anhh-delivery-location-changed", refreshLive);
+      document.removeEventListener("visibilitychange", refreshVisible);
+    };
   }, [refreshKey, superAdmin]);
 
   const routes = useMemo<DeliveryMapRoute[]>(() => deliveries.map(row => ({
@@ -75,7 +84,7 @@ export function DeliveryLiveMonitor({ superAdmin = false, supervisor = false }: 
         </div>
         {loading ? <div className="grid min-h-64 place-items-center"><Loader2 className="animate-spin text-blue-700" /></div>
           : deliveries.length ? <DeliveryTrackingMap routes={routes} />
-            : <div className="grid min-h-64 place-items-center rounded-xl bg-slate-50 px-5 text-center dark:bg-slate-800"><div><Truck className="mx-auto text-slate-400" size={32} /><p className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-200">No active deliveries</p><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Riders appear here when an order is out for delivery.</p></div></div>}
+            : <div className="grid min-h-64 place-items-center rounded-xl bg-slate-50 px-5 text-center dark:bg-slate-800"><div><Truck className="mx-auto text-slate-400" size={32} /><p className="mt-3 text-sm font-bold text-slate-700 dark:text-slate-200">No active deliveries</p><p className="mt-1 text-xs text-slate-500 dark:text-slate-400">Riders appear here after accepting a delivery.</p></div></div>}
       </section>
       {selected && <section className="grid gap-5 lg:grid-cols-[0.8fr_1.2fr]">
         <div className="rounded-2xl border border-slate-200 bg-white p-5 dark:border-slate-700 dark:bg-slate-900">

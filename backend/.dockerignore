@@ -4,3 +4,9 @@ obj/
 *.user
 appsettings.*.local.json
 App_Data/
+**/bin/
+**/obj/
+.build-check*/
+.tmp-*/
+.runtime/
+MigrationsSnapshotRepair/

@@ -14,11 +14,11 @@ public sealed class PharmacyCommercialSetupController(ApplicationDbContext db) :
 {
     private bool IsSuperAdmin => User.IsStaffRole(StaffRoles.SuperAdmin);
     private bool SuperAdminPath => Request.Path.StartsWithSegments("/api/superadmin", StringComparison.OrdinalIgnoreCase);
-    private bool CanManage => SuperAdminPath ? IsSuperAdmin : IsSuperAdmin ||
-        User.IsStaffRole(StaffRoles.Admin, StaffRoles.Supervisor) && User.HasStaffPermission(AppPermissions.CatalogManage);
-    private bool CanUseSalesTemplates => CanManage || !SuperAdminPath && User.IsStaffRole(StaffRoles.Accountant, StaffRoles.SalesExecutive);
-    private bool CanUsePartyDiscounts => CanManage || !SuperAdminPath && User.IsStaffRole(StaffRoles.Accountant, StaffRoles.SalesExecutive);
-    private bool CanUseSupplierDiscounts => CanManage || !SuperAdminPath && User.IsStaffRole(StaffRoles.Accountant, StaffRoles.Admin, StaffRoles.Supervisor);
+    private bool WorkspaceAccess => (SuperAdminPath ? IsSuperAdmin : User.TryGetStaffId(out _)) && User.HasStaffPermission(SalesPurchasePermissions.View);
+    private bool CanManage => WorkspaceAccess && User.HasStaffPermission(AppPermissions.CatalogManage);
+    private bool CanUseSalesTemplates => CanManage || WorkspaceAccess && User.HasStaffPermission(SalesPurchasePermissions.SalesView);
+    private bool CanUsePartyDiscounts => CanUseSalesTemplates;
+    private bool CanUseSupplierDiscounts => CanManage || WorkspaceAccess && User.HasStaffPermission(SalesPurchasePermissions.PurchaseView);
     private Guid ActorId => User.TryGetStaffId(out var id) ? id : Guid.Empty;
     private string ActorRole => User.FindFirstValue(ClaimTypes.Role) ?? "STAFF";
     private Guid? ActorBranchId => Guid.TryParse(User.FindFirstValue("branch_id"), out var id) ? id : null;

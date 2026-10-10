@@ -1,5 +1,6 @@
 "use client";
 
+
 /* eslint-disable react-hooks/set-state-in-effect -- hydrate the protected workspace from the browser session. */
 import Link from "next/link";
 import {
@@ -9,6 +10,7 @@ import {
   Boxes,
   CalendarDays,
   CalendarPlus,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
@@ -20,13 +22,15 @@ import {
   Menu,
   PackageCheck,
   Search,
+  ShoppingBasket,
   ShieldCheck,
   Truck,
   Users,
   X,
 } from "lucide-react";
-import { usePathname, useRouter } from "next/navigation";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
+  Suspense,
   useEffect,
   useRef,
   useState,
@@ -45,10 +49,11 @@ import { useSiteConfig } from "@/components/site-config-provider";
 import { AccountProfileMenu } from "@/components/account-profile-menu";
 import { BackButton } from "@/components/back-button";
 import { MessagingLink } from "@/components/messaging-link";
-import { isProfileOrLogoutSidebarItem } from "@/lib/sidebar-navigation";
+import { activeSidebarLinkIndex, isProfileOrLogoutSidebarItem } from "@/lib/sidebar-navigation";
+import { isCustomerWebsitePath } from "@/lib/staff-routing";
 import { RiderAvailabilityControl } from "@/components/rider-availability-control";
 
-type Panel = "pharmacist" | "delivery" | "sales-executive" | "accountant";
+type Panel = "pharmacist" | "delivery" | "sales-executive" | "accountant" | "sales-management";
 
 function staffRoleLabel(role?: string) {
   switch (role?.trim().toUpperCase()) {
@@ -80,6 +85,7 @@ type StaffLink = {
   }>;
 };
 const pharmacistLinks: StaffLink[] = [
+  { label: "Delivery retries", href: "/pharmacist/delivery-retries", Icon: History },
   { label: "Dashboard", href: "/pharmacist", Icon: LayoutDashboard },
   { label: "My attendance", href: "/attendance", Icon: CalendarDays },
   { label: "Prescriptions", href: "/pharmacist/prescriptions", Icon: FileText },
@@ -102,37 +108,37 @@ const pharmacistLinks: StaffLink[] = [
 ];
 const deliveryLinks: StaffLink[] = [
   { label: "Dashboard", href: "/delivery", Icon: LayoutDashboard },
-  { label: "My attendance", href: "/attendance", Icon: CalendarDays },
   { label: "My deliveries", href: "/delivery/orders", Icon: Truck },
+  { label: "Take order", href: "/delivery/take-order", Icon: ShoppingBasket },
+  { label: "Active delivery", href: "/delivery/orders?status=OUT_FOR_DELIVERY", Icon: ClipboardCheck },
   {
     label: "Pending pickup",
     href: "/delivery/orders?status=ASSIGNED_FOR_DELIVERY",
     Icon: PackageCheck,
   },
-  {
-    label: "Out for delivery",
-    href: "/delivery/orders?status=OUT_FOR_DELIVERY",
-    Icon: ClipboardCheck,
-  },
-  {
-    label: "Completed",
-    href: "/delivery/history?status=DELIVERED",
-    Icon: ShieldCheck,
-  },
-  { label: "Failed", href: "/delivery/history?status=FAILED", Icon: FileText },
+  { label: "My cash", href: "/delivery/cash", Icon: ClipboardCheck },
+  { label: "Delivery history", href: "/delivery/history?status=DELIVERED", Icon: History },
   { label: "Notifications", href: "/delivery/notifications", Icon: Bell },
-  { label: "Messages", href: "/messages?account=staff", Icon: MessageCircle },
+  { label: "Profile", href: "/delivery/profile", Icon: Users },
 ];
 const salesExecutiveLinks: StaffLink[] = [
   { label: "Dashboard", href: "/sales-executive", Icon: LayoutDashboard },
   { label: "My attendance", href: "/attendance", Icon: CalendarDays },
   { label: "My leave", href: "/leave", Icon: CalendarPlus },
-  { label: "Orders", href: "/sales-executive/orders", Icon: ClipboardList },
-  { label: "Sales performance", href: "/sales-executive", Icon: BarChart3 },
+  { label: "Assigned customers", href: "/sales-executive/customers", Icon: Users },
+  { label: "Visits & follow-ups", href: "/sales-executive/visits", Icon: CalendarDays },
+  { label: "Take order", href: "/sales-executive/take-order", Icon: ShoppingBasket },
+  { label: "My orders", href: "/sales-executive/orders", Icon: ClipboardList },
+  { label: "Payment follow-up", href: "/sales-executive/payments", Icon: FileClock },
+  { label: "Collections", href: "/sales-executive/collections", Icon: ClipboardCheck },
+  { label: "Return requests", href: "/sales-executive/returns", Icon: History },
+  { label: "Sales performance", href: "/sales-executive/performance", Icon: BarChart3 },
   { label: "Messages", href: "/messages?account=staff", Icon: MessageCircle },
 ];
 const accountantLinks: StaffLink[] = [
+  { label: "Delivery cash handovers", href: "/accounts/delivery", Icon: ClipboardCheck },
   { label: "Finance workspace", href: "/accounts", Icon: BarChart3 },
+  { label: "Verify sales collections", href: "/sales-management", Icon: ClipboardCheck },
   { label: "Messages", href: "/messages?account=staff", Icon: MessageCircle },
 ];
 
@@ -150,7 +156,19 @@ export function staffUser(): Staff | null {
   }
 }
 
-export function StaffShell({
+type StaffShellProps = {
+  panel: Panel;
+  children: ReactNode;
+  title?: string;
+  action?: ReactNode;
+  backHref?: string;
+};
+
+export function StaffShell(props: StaffShellProps) {
+  return <Suspense fallback={null}><StaffShellContent {...props} /></Suspense>;
+}
+
+function StaffShellContent({
   panel,
   children,
   title,
@@ -165,10 +183,12 @@ export function StaffShell({
 }) {
   const pathname = usePathname();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const sidebarRef = useRef<HTMLElement>(null);
   const [open, setOpen] = useState(false);
   const [collapsed, setCollapsed] = useState(false);
   const [ready, setReady] = useState(false);
+  const [deliveryMenuOpen, setDeliveryMenuOpen] = useState(false);
   const [staff, setStaff] = useState<Staff | null>(null);
   const [configuredLinks, setConfiguredLinks] = useState<
     AdminRoleSidebarMenuItem[] | null
@@ -184,8 +204,8 @@ export function StaffShell({
         ? "/pharmacist/prescriptions"
         : undefined;
   const resolvedBackHref = backHref ?? detailBackHref;
-  const links = panel === "pharmacist" ? pharmacistLinks : panel === "delivery" ? deliveryLinks : panel === "sales-executive" ? salesExecutiveLinks : accountantLinks;
-  const homePath = panel === "pharmacist" ? "/pharmacist" : panel === "delivery" ? "/delivery" : panel === "sales-executive" ? "/sales-executive" : "/accounts";
+  const links = panel === "pharmacist" ? pharmacistLinks : panel === "delivery" ? deliveryLinks : panel === "sales-executive" ? salesExecutiveLinks : panel === "sales-management" ? [{ label: "Sales management", href: "/sales-management", Icon: ClipboardCheck }, { label: "My workspace", href: staff?.role === "ACCOUNTANT" ? "/accounts" : staff?.role === "SUPERADMIN" ? "/superadmin" : staff?.role === "SALES_MANAGER" ? "/sales-management" : "/admin", Icon: LayoutDashboard }, { label: "Messages", href: "/messages?account=staff", Icon: MessageCircle }] : accountantLinks;
+  const homePath = panel === "pharmacist" ? "/pharmacist" : panel === "delivery" ? "/delivery" : panel === "sales-executive" ? "/sales-executive" : panel === "sales-management" ? "/sales-management" : "/accounts";
   const collapsedStorageKey = `anhh-${panel}-sidebar-collapsed`;
   const scrollStorageKey = `anhh-${panel}-sidebar-scroll`;
   const sidebarStyle = {
@@ -216,7 +236,7 @@ export function StaffShell({
         ? ["DELIVERY", "SUPERVISOR", "ADMIN", "SUPERADMIN"]
         : panel === "sales-executive"
           ? ["SALES_EXECUTIVE"]
-          : ["ACCOUNTANT"];
+          : panel === "sales-management" ? ["SUPERADMIN", "ADMIN", "SALES_MANAGER", "ACCOUNTANT"] : ["ACCOUNTANT"];
     if (!token || !user || !allowed.includes(role ?? "")) {
       router.replace(`/staff/login?returnTo=${encodeURIComponent(pathname)}`);
       return;
@@ -241,25 +261,42 @@ export function StaffShell({
     };
   }, [staff]);
 
+  useEffect(() => {
+    if (panel === "delivery") {
+      setDeliveryMenuOpen(pathname.startsWith("/delivery/orders"));
+    }
+  }, [panel, pathname]);
+
   const configuredOrDefaultLinks =
     configuredLinks !== null
       ? configuredLinks
           .filter(
-            (item) => item.isVisible && !isProfileOrLogoutSidebarItem(item),
+            (item) => item.isVisible && !isProfileOrLogoutSidebarItem(item) && !isCustomerWebsitePath(item.href),
           )
           .map((item) => ({
             ...item,
             Icon: resolveSidebarIcon(item.icon),
           }))
       : links;
+  const deliveryConfiguredLinks = panel === "delivery"
+    ? configuredOrDefaultLinks.filter((item) => item.href === "/delivery" || item.href.startsWith("/delivery/"))
+    : [];
   const selfHrmsLinks: StaffLink[] = [
     { label: "My attendance", href: "/attendance", Icon: CalendarDays },
     { label: "My leave", href: "/leave", Icon: CalendarPlus },
   ];
-  const visibleLinks = [
-    ...configuredOrDefaultLinks,
-    ...selfHrmsLinks.filter((item) => !configuredOrDefaultLinks.some((configured) => configured.href === item.href)),
-  ];
+  const visibleLinks = panel === "delivery"
+    ? [
+        ...deliveryLinks,
+        ...deliveryConfiguredLinks.filter((configured) => !deliveryLinks.some((item) => item.href === configured.href)),
+      ]
+    : panel === "sales-executive" || panel === "sales-management"
+      ? [...links, ...selfHrmsLinks.filter(item => !links.some(link => link.href === item.href))]
+    : [
+        ...configuredOrDefaultLinks,
+        ...accountantLinks.filter(item => panel === "accountant" && item.href === "/sales-management" && !configuredOrDefaultLinks.some(link => link.href === item.href)),
+        ...selfHrmsLinks.filter((item) => !configuredOrDefaultLinks.some((configured) => configured.href === item.href)),
+      ];
 
   useEffect(() => {
     const saved = Number(
@@ -286,6 +323,39 @@ export function StaffShell({
     });
   }
 
+  const activeLinkIndex = activeSidebarLinkIndex(visibleLinks, pathname, searchParams.toString(), homePath);
+
+  function renderNavLink(
+    { label, href, Icon }: StaffLink,
+    index: number,
+    nested = false,
+  ) {
+    const active = index === activeLinkIndex;
+    return (
+      <Link
+        key={`${href}-${index}`}
+        href={href}
+        onClick={() => {
+          rememberSidebarPosition();
+        }}
+        title={collapsed ? label : undefined}
+        aria-label={collapsed ? label : undefined}
+        aria-current={active ? "page" : undefined}
+        className={`flex items-center gap-3 rounded-xl ${rightNavigation ? "border-r-2 border-l-0" : "border-l-2 border-r-0"} border-transparent px-3 py-3 text-sm font-bold transition-colors ${collapsed ? "justify-center" : ""} ${nested && !collapsed ? rightNavigation ? "pr-5" : "pl-5" : ""} ${active ? "border-[var(--sidebar-active-icon)] bg-[var(--sidebar-active-background)] text-[var(--sidebar-active-text)]" : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-background)] hover:text-[var(--sidebar-hover-text)]"}`}
+      >
+        <Icon
+          size={17}
+          style={{
+            color: active
+              ? "var(--sidebar-active-icon)"
+              : "var(--sidebar-icon)",
+          }}
+        />
+        {!collapsed && label}
+      </Link>
+    );
+  }
+
   if (!ready)
     return (
       <div className="min-h-screen bg-slate-100 p-8">
@@ -297,7 +367,7 @@ export function StaffShell({
     );
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div data-staff-panel={panel} className="min-h-screen bg-slate-100 dark:bg-slate-950">
       {open && (
         <button
           type="button"
@@ -336,7 +406,7 @@ export function StaffShell({
               <span className="text-xs font-extrabold tracking-[0.13em]">
                 ALL NEPAL
                 <br />
-                <span className="opacity-80">OPERATIONS</span>
+                <span className="opacity-80">{panel === "delivery" ? "HEALTHY HOME" : "OPERATIONS"}</span>
               </span>
             )}
           </Link>
@@ -372,31 +442,58 @@ export function StaffShell({
           className={`${collapsed ? "mt-7" : "mt-5"} border-t border-[var(--sidebar-divider)] pt-3`}
         >
           <nav className="grid gap-1" aria-label={`${panel} navigation`}>
-            {visibleLinks.map(({ label, href, Icon }, index) => {
-              const active =
-                pathname === href ||
-                (href !== homePath && pathname.startsWith(href.split("?")[0]));
-              return (
-                <Link
-                  key={`${href}-${index}`}
-                  href={href}
-                  onClick={rememberSidebarPosition}
-                  title={collapsed ? label : undefined}
-                  aria-label={collapsed ? label : undefined}
-                  className={`flex items-center gap-3 rounded-xl ${rightNavigation ? "border-r-2 border-l-0" : "border-l-2 border-r-0"} border-transparent px-3 py-3 text-sm font-bold transition-colors ${collapsed ? "justify-center" : ""} ${active ? "border-[var(--sidebar-active-icon)] bg-[var(--sidebar-active-background)] text-[var(--sidebar-active-text)]" : "text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-background)] hover:text-[var(--sidebar-hover-text)]"}`}
-                >
-                  <Icon
-                    size={17}
-                    style={{
-                      color: active
-                        ? "var(--sidebar-active-icon)"
-                        : "var(--sidebar-icon)",
+            {panel === "delivery" ? (
+              <>
+                {renderNavLink(deliveryLinks[0], 0)}
+                <div className="grid gap-1">
+                  <button
+                    type="button"
+                    aria-expanded={deliveryMenuOpen}
+                    aria-controls="delivery-subnav"
+                    title={collapsed ? "Deliveries" : undefined}
+                    aria-label={collapsed ? "Deliveries" : undefined}
+                    onClick={() => {
+                      if (collapsed) toggleCollapsed();
+                      setDeliveryMenuOpen((value) => !value);
                     }}
-                  />
-                  {!collapsed && label}
-                </Link>
-              );
-            })}
+                    className={`flex items-center gap-3 rounded-xl ${rightNavigation ? "border-r-2 border-l-0" : "border-l-2 border-r-0"} border-transparent px-3 py-3 text-sm font-bold transition-colors ${collapsed ? "justify-center" : "justify-between"} text-[var(--sidebar-text)] hover:bg-[var(--sidebar-hover-background)] hover:text-[var(--sidebar-hover-text)]`}
+                  >
+                    <span className="flex items-center gap-3">
+                      <Truck
+                        size={17}
+                        style={{
+                          color: "var(--sidebar-icon)",
+                        }}
+                      />
+                      {!collapsed && "Deliveries"}
+                    </span>
+                    {!collapsed && (
+                      <ChevronDown
+                        size={16}
+                        className={`transition-transform ${deliveryMenuOpen ? "rotate-180" : ""}`}
+                      />
+                    )}
+                  </button>
+                  <div
+                    id="delivery-subnav"
+                    hidden={!deliveryMenuOpen}
+                    className={`${deliveryMenuOpen ? "grid" : "hidden"} gap-1 ${rightNavigation ? "mr-3 border-r" : "ml-3 border-l"} border-[var(--sidebar-divider)] py-1`}
+                  >
+                    {deliveryLinks.slice(1, 5).map((link, index) =>
+                      renderNavLink(link, index + 1, true),
+                    )}
+                  </div>
+                </div>
+                {deliveryLinks.slice(5).map((link, index) =>
+                  renderNavLink(link, index + 5),
+                )}
+                {deliveryConfiguredLinks
+                  .filter((configured) => !deliveryLinks.some((item) => item.href === configured.href))
+                  .map((link, index) => renderNavLink(link, index + deliveryLinks.length))}
+              </>
+            ) : (
+              visibleLinks.map((link, index) => renderNavLink(link, index))
+            )}
           </nav>
         </div>
         <button
@@ -412,7 +509,7 @@ export function StaffShell({
       <div
         className={`${rightNavigation ? (collapsed ? "lg:pr-[84px]" : "lg:pr-72") : collapsed ? "lg:pl-[84px]" : "lg:pl-72"} transition-[padding]`}
       >
-        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur">
+        <header className="sticky top-0 z-20 border-b border-slate-200 bg-white/95 backdrop-blur dark:border-slate-700 dark:bg-slate-900/95">
           <div className="flex items-center justify-between px-4 py-4 sm:px-8">
             <button
               onClick={() => setOpen(true)}
@@ -421,12 +518,23 @@ export function StaffShell({
             >
               <Menu size={19} />
             </button>
-            <div className="hidden items-center gap-2 text-xs font-bold text-slate-500 sm:flex">
-              <Search size={16} className="text-teal-600" />{" "}
-              {panel === "pharmacist" ? "Pharmacy control centre" : panel === "delivery" ? "Delivery workspace" : panel === "sales-executive" ? "Sales workspace" : "Finance workspace"}
-            </div>
-            <div className="ml-auto flex items-center gap-3">
-              {panel !== "sales-executive" && panel !== "accountant" && <Link
+            {panel === "delivery" ? (
+              <Link href={homePath} className="ml-2 flex min-w-0 items-center gap-2.5 text-slate-900 dark:text-slate-100">
+                <span className="grid size-9 shrink-0 place-items-center rounded-xl bg-teal-700 text-white"><ShieldCheck size={19} /></span>
+                <span className="min-w-0"><span className="block truncate text-xs font-extrabold sm:text-sm">All Nepal Healthy Home</span><span className="hidden text-[10px] font-bold text-slate-500 dark:text-slate-400 sm:block">Delivery workspace</span></span>
+              </Link>
+            ) : (
+              <div className="hidden items-center gap-2 text-xs font-bold text-slate-500 sm:flex">
+                <Search size={16} className="text-teal-600" />{" "}
+                {panel === "pharmacist" ? "Pharmacy control centre" : (panel === "sales-executive" || panel === "sales-management") ? "Sales workspace" : "Finance workspace"}
+              </div>
+            )}
+            <div className="ml-auto flex items-center gap-1.5 sm:gap-3">
+              {panel === "delivery" && staff && <>
+                <span className="max-w-14 truncate text-[10px] font-bold text-slate-700 dark:text-slate-200 sm:max-w-36 sm:text-xs">{staff.fullName.split(" ")[0]}</span>
+                <RiderAvailabilityControl variant="compact" />
+              </>}
+              {panel !== "sales-executive" && panel !== "sales-management" && panel !== "accountant" && <Link
                 href={
                   panel === "pharmacist" ? "/pharmacist/notifications" : "/delivery/notifications"
                 }
@@ -437,7 +545,7 @@ export function StaffShell({
               </Link>}
               {staff && (
                 <>
-                  <MessagingLink accountType="staff" compact />
+                  {panel !== "delivery" && <MessagingLink accountType="staff" compact />}
                   <AccountProfileMenu
                   kind="staff"
                   name={staff.fullName}
@@ -445,23 +553,30 @@ export function StaffShell({
                   accountTypeLabel={staff.role}
                   links={panel === "accountant" ? [
                     { label: "Finance workspace", href: "/accounts" },
+                  ] : panel === "sales-management" ? [{ label: "Sales management", href: "/sales-management" }] : panel === "delivery" ? [
+                    { label: "My profile", href: "/delivery/profile" },
+                    { label: "My deliveries", href: "/delivery/orders" },
+                  ] : panel === "pharmacist" ? [
+                    { label: "My profile", href: "/pharmacist/profile" },
+                    { label: "My prescriptions", href: "/pharmacist/prescriptions" },
+                    { label: "My orders", href: "/pharmacist/orders" },
                   ] : [
-                    { label: "My Account", href: panel === "pharmacist" ? "/pharmacist/profile" : panel === "delivery" ? "/delivery/profile" : "/sales-executive" },
-                    { label: "My Orders", href: panel === "pharmacist" ? "/pharmacist/orders" : panel === "delivery" ? "/delivery/orders" : "/sales-executive/orders" },
-                    { label: "Wishlist", href: "/wishlist" },
+                    { label: "My workspace", href: "/sales-executive" },
+                    { label: "My orders", href: "/sales-executive/orders" },
                   ]}
                   />
                 </>
               )}
             </div>
           </div>
-        </header>
-        <main className="mx-auto max-w-7xl px-4 py-7 sm:px-8">
+        <div className="flex justify-end px-4 pb-1"></div>
+      </header>
+        <main className={`mx-auto ${panel === "delivery" ? "max-w-6xl px-3 py-4 sm:px-6 sm:py-6" : "max-w-7xl px-4 py-7 sm:px-8"}`}>
           <div className="mb-7 flex flex-wrap items-end justify-between gap-4">
             <div>
               {resolvedBackHref && <BackButton fallbackHref={resolvedBackHref} />}
               <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-teal-700">
-                {panel === "pharmacist" ? "Pharmacist panel" : panel === "delivery" ? "Delivery panel" : panel === "sales-executive" ? "Sales Executive panel" : "Accountant panel"}
+                {panel === "pharmacist" ? "Pharmacist panel" : panel === "delivery" ? "Delivery panel" : panel === "sales-executive" ? "Sales Executive panel" : panel === "sales-management" ? "Sales management" : "Accountant panel"}
               </p>
               {title && (
                 <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">
@@ -471,7 +586,6 @@ export function StaffShell({
             </div>
             {!resolvedBackHref && action}
           </div>
-          {panel === "delivery" && <RiderAvailabilityControl />}
           {children}
         </main>
       </div>

@@ -1,8 +1,10 @@
 "use client";
 
+import { UniversalImageUploader } from "@/components/universal-image-uploader";
+
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import {
   ArrowLeft,
   ArrowDown,
@@ -141,7 +143,7 @@ function DesignSettingsPage() {
   const [logoSaving, setLogoSaving] = useState(false);
   const [logoError, setLogoError] = useState("");
   const [removeLogoOpen, setRemoveLogoOpen] = useState(false);
-  const logoInputRef = useRef<HTMLInputElement>(null);
+  const [logoPickerGeneration, setLogoPickerGeneration] = useState(0);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [sectionSaving, setSectionSaving] = useState("");
@@ -607,18 +609,9 @@ function DesignSettingsPage() {
                       {logoUrl || "No public media URL saved"}
                     </code>
                   </div>
-                  <input
-                    ref={logoInputRef}
-                    type="file"
-                    accept="image/jpeg,image/png,image/webp,image/gif,image/bmp,image/avif"
-                    className="sr-only"
-                    aria-label="Choose website logo image"
-                    onChange={(event) => chooseLogo(event.target.files?.[0])}
-                  />
+                  <UniversalImageUploader key={`${logoUrl}:${logoPickerGeneration}`} label="Website logo image" value={logoUrl} onChange={chooseLogo} onRemove={() => { if (logoFile) { setLogoFile(null); setLogoPickerGeneration(value => value + 1); } else setRemoveLogoOpen(true); }} disabled={logoSaving} uploadState={logoSaving ? "uploading" : "idle"} uploadProgress={logoProgress} aspect="aspect-square" helperText="Transparent PNG or WebP recommended. Keep the full logo visible." />
                   <div className="flex flex-wrap gap-2">
-                    <Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()} disabled={logoSaving}>
-                      {logoUrl ? "Choose replacement" : "Choose logo"}
-                    </Button>
+
                     <Button type="button" onClick={() => void uploadLogo()} disabled={!logoFile || logoSaving}>
                       {logoSaving ? <Loader2 className="animate-spin" /> : <Save size={16} />}
                       {logoSaving ? `Saving ${logoProgress}%` : "Upload and save logo"}
@@ -628,7 +621,7 @@ function DesignSettingsPage() {
                   {logoFile && (
                     <div className="flex items-center justify-between gap-3 rounded-xl border border-blue-200 bg-blue-50 p-3 text-xs">
                       <span className="min-w-0 truncate font-bold text-blue-900">Selected: {logoFile.name} · {(logoFile.size / 1024 / 1024).toFixed(2)} MB</span>
-                      <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoFile(null); if (logoInputRef.current) logoInputRef.current.value = ""; }}>Clear</Button>
+                      <Button type="button" variant="ghost" size="sm" onClick={() => { setLogoFile(null); setLogoPickerGeneration(value => value + 1); }}>Clear</Button>
                     </div>
                   )}
                   {logoSaving && <div className="grid gap-2" aria-live="polite"><div className="flex justify-between text-xs font-semibold text-slate-600"><span>Uploading and saving logo…</span><span>{logoProgress}%</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-200"><div className="h-full rounded-full bg-blue-700 transition-[width]" style={{ width: `${logoProgress}%` }} /></div></div>}

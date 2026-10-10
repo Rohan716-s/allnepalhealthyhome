@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { BriefcaseBusiness, Building2, Calculator, KeyRound, Pill, ShieldCheck, Truck, Users } from "lucide-react";
 import { toast } from "sonner";
 import { ApiError, loginCustomer, loginStaff } from "@/services/api";
-import { canReturnToStaffPath } from "@/lib/staff-routing";
+import { canReturnToStaffPath, staffDefaultPath } from "@/lib/staff-routing";
 import { useSiteValue } from "@/components/site-config-provider";
 import { ModernLoginShell, type LoginRoleOption } from "@/components/modern-login-shell";
 import { resumePendingGuestAction } from "@/lib/pending-guest-action";
@@ -57,7 +57,8 @@ function AuthPageContent() {
       const canReturn = role.key === "customer" || role.key === "pharmacy"
         ? Boolean(returnTo?.startsWith("/") && !returnTo.startsWith("//"))
         : canReturnToStaffPath(returnTo, signedInStaffRole);
-      router.push(resumedReturnTo ?? (canReturn ? returnTo! : role.path));
+      const destination = signedInStaffRole ? staffDefaultPath(signedInStaffRole) : role.path;
+      router.replace(resumedReturnTo ?? (canReturn ? returnTo! : destination));
     } catch (caught) {
       setMessage(caught instanceof ApiError ? caught.message : "The API is unavailable. Please try again.");
     } finally {

@@ -4,6 +4,13 @@
 !.env.example
 *.key
 *.pem
+*.pfx
+*.p12
+*.crt
+*.cer
+*.der
+*.p7b
+*.p7c
 
 # Node / Next.js
 node_modules/
@@ -49,6 +56,8 @@ meilisearch-data/
 **/.rider-live-build/
 **/.tmp-*/
 **/tsconfig.tsbuildinfo
+frontend/public/offline-assets.json
+frontend/scripts/.tmp-debug-list.mjs
 backend/MigrationsSnapshotRepair/
 
 # OS files

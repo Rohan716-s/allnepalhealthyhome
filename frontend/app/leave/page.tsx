@@ -1,4 +1,9 @@
 "use client";
+import { RecordTable } from "@/components/entity-record-table";
+import { EntityListWorkspace, EntityListPanel, EntityFormPanel, entitySaveComplete, useWorkspaceSelection } from "@/components/entity-list-panel";
+import { FormSaveActions } from "@/components/form-save-actions";
+import { OfflineStatus } from "@/components/offline-status";
+import { useOfflineRefresh } from "@/lib/offline/hooks";
 
 /* eslint-disable react-hooks/set-state-in-effect -- load the signed-in employee's leave records after client authentication is available. */
 
@@ -10,6 +15,7 @@ import { toast } from "sonner";
 import { AccountProfileMenu } from "@/components/account-profile-menu";
 import { BackButton } from "@/components/back-button";
 import { staffToken, staffUser } from "@/components/staff-shell";
+import { staffDefaultPath } from "@/lib/staff-routing";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +63,7 @@ export default function LeavePage() {
     }
   }, [router]);
 
+  useOfflineRefresh(load, "/api/hrms/");
   useEffect(() => { void load(); }, [load]);
 
   async function submit(event: React.FormEvent<HTMLFormElement>) {
@@ -71,17 +78,17 @@ export default function LeavePage() {
       setForm(emptyForm);
       toast.success("Leave request saved and sent for approval.");
       await load();
-    } catch (cause) {
+     entitySaveComplete(); } catch (cause) {
       toast.error(cause instanceof Error ? cause.message : "Leave request could not be saved.");
     } finally {
       setSaving(false);
     }
   }
 
-  if (!ready) return <main className="grid min-h-screen place-items-center bg-slate-100 text-sm text-slate-500">Loading leave module…</main>;
+  if (!ready) return <EntityListWorkspace title="My leave"><main className="grid min-h-screen place-items-center bg-slate-100 text-sm text-slate-500">Loading leave module…</main></EntityListWorkspace>;
   const user = staffUser();
 
-  return (
+  return <EntityListWorkspace title="My leave">
     <main className="min-h-screen bg-slate-100 px-4 py-6 sm:px-6 lg:px-10">
       <div className="mx-auto max-w-7xl">
         <BackButton fallbackHref="/attendance" />
@@ -91,7 +98,8 @@ export default function LeavePage() {
             <h1 className="mt-2 text-3xl font-extrabold tracking-tight text-slate-950">My leave</h1>
             <p className="mt-2 text-sm text-slate-600">Apply for leave and check the status of your own requests.</p>
           </div>
-          {user && <AccountProfileMenu kind="staff" name={user.fullName} email={user.email} accountTypeLabel={user.role} links={[{ label: "My Attendance", href: "/attendance" }, { label: "My Orders", href: user.role === "DELIVERY" ? "/delivery/orders" : "/pharmacist/orders" }, { label: "Wishlist", href: "/wishlist" }]} />}
+          {user && <AccountProfileMenu kind="staff" name={user.fullName} email={user.email} accountTypeLabel={user.role} links={[{ label: "My workspace", href: staffDefaultPath(user.role) }, { label: "My attendance", href: "/attendance" }]} />}
+        <OfflineStatus />
         </header>
 
         <nav aria-label="HRMS modules" className="mt-6 flex flex-wrap gap-3">
@@ -101,8 +109,8 @@ export default function LeavePage() {
 
         {error && <div role="alert" className="mt-5 flex flex-wrap items-center justify-between gap-3 rounded-xl border border-rose-200 bg-rose-50 p-4 text-sm font-semibold text-rose-800"><span>{error}</span><Button type="button" variant="outline" onClick={() => void load()}>Retry</Button></div>}
 
-        <div className="mt-6 grid gap-6 xl:grid-cols-[390px_1fr]">
-          <Card className="h-fit">
+        <div className="mt-6 grid gap-6 ">
+          <EntityFormPanel><Card className="h-fit">
             <CardHeader><CardTitle className="flex items-center gap-2"><CalendarPlus size={19} className="text-amber-700" />Apply for leave</CardTitle></CardHeader>
             <CardContent>
               <form className="grid gap-4" onSubmit={submit}>
@@ -118,28 +126,28 @@ export default function LeavePage() {
                 <label className="grid gap-2 text-sm font-semibold">Reason
                   <Textarea required minLength={3} maxLength={1000} value={form.reason} onChange={(event) => setForm({ ...form, reason: event.target.value })} placeholder="Explain your request" />
                 </label>
-                <Button type="submit" disabled={saving}>{saving ? "Saving…" : <><Send size={16} />Save leave request</>}</Button>
+                <FormSaveActions mode="create" busy={saving} onCancel={() => {}} />
               </form>
               <p className="mt-4 text-xs leading-5 text-slate-500">Your request is saved to the HRMS database and is visible to you and authorized administrators.</p>
             </CardContent>
-          </Card>
+          </Card></EntityFormPanel>
 
-          <Card>
+          <EntityListPanel addLabel="Add entry"><Card>
             <CardHeader><CardTitle className="flex items-center gap-2"><ClipboardList size={19} className="text-[#003893]" />My leave list</CardTitle></CardHeader>
             <CardContent>
               <div className="overflow-x-auto">
-                <table className="w-full min-w-[680px] text-left text-sm">
+                <RecordTable className="w-full min-w-[680px] text-left text-sm">
                   <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Type</th><th className="px-4 py-3">Dates</th><th className="px-4 py-3">Reason</th><th className="px-4 py-3">Status</th><th className="px-4 py-3">Admin comment</th></tr></thead>
                   <tbody className="divide-y divide-slate-100">
                     {rows.map((row) => <tr key={row.id}><td className="px-4 py-4 font-bold">{row.leaveType.replaceAll("_", " ")}</td><td className="px-4 py-4 text-xs">{formatPlatformDate(row.startDate, dateFormat)} – {formatPlatformDate(row.endDate, dateFormat)}</td><td className="max-w-sm px-4 py-4 text-slate-600">{row.reason}</td><td className="px-4 py-4"><Badge variant={row.status === "APPROVED" ? "secondary" : row.status === "REJECTED" ? "destructive" : "outline"}>{readableStatus(row.status)}</Badge></td><td className="px-4 py-4 text-slate-600">{row.approvalComment || "—"}</td></tr>)}
                     {!rows.length && <tr><td colSpan={5} className="px-4 py-12 text-center text-slate-500">You have no leave requests yet.</td></tr>}
                   </tbody>
-                </table>
+                </RecordTable>
               </div>
             </CardContent>
-          </Card>
+          </Card></EntityListPanel>
         </div>
       </div>
     </main>
-  );
+  </EntityListWorkspace>;
 }

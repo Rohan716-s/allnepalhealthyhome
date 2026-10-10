@@ -1,4 +1,5 @@
 "use client";
+import { EntityListWorkspace, EntityListPanel, EntityFormPanel, routeEntityEdit, useEntityRecord, entitySaveComplete } from "@/components/entity-list-panel";
 
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 import { Boxes, Building2, Loader2, Pencil, Truck, X } from "lucide-react";
@@ -56,9 +57,9 @@ const blankZone = {
 };
 
 export function AdminLogisticsManagement({
-  superAdmin = false,
+  superAdmin = false, supplierOnly = false,
 }: {
-  superAdmin?: boolean;
+  superAdmin?: boolean; supplierOnly?: boolean;
 }) {
   const [suppliers, setSuppliers] = useState<AdminSupplier[]>([]);
   const [zones, setZones] = useState<AdminDeliveryZone[]>([]);
@@ -96,7 +97,10 @@ export function AdminLogisticsManagement({
     setSupplier(blankSupplier);
     setZone(blankZone);
   }
+  useEntityRecord(suppliers,row => editSupplier(row.id));
+  useEntityRecord(zones,row => editZone(row.id),"1");
   function editSupplier(id: string) {
+    if(routeEntityEdit(id))return;
     const row = suppliers.find((item) => item.id === id);
     if (row) {
       setEditing({ type: "supplier", id });
@@ -112,6 +116,7 @@ export function AdminLogisticsManagement({
     }
   }
   function editZone(id: string) {
+    if(routeEntityEdit(id,"1"))return;
     const row = zones.find((item) => item.id === id);
     if (row) {
       setEditing({ type: "zone", id });
@@ -149,7 +154,7 @@ export function AdminLogisticsManagement({
       );
       toast.success("Supplier saved");
       reset();
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       setError(e instanceof Error ? e.message : "Supplier could not be saved.");
     } finally {
       setSaving("");
@@ -186,7 +191,7 @@ export function AdminLogisticsManagement({
       );
       toast.success("Delivery zone saved");
       reset();
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       setError(
         e instanceof Error ? e.message : "Delivery zone could not be saved.",
       );
@@ -213,21 +218,21 @@ export function AdminLogisticsManagement({
           ),
         );
       toast.success(`${name} is now ${isActive ? "active" : "inactive"}`);
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       const message =
         e instanceof Error ? e.message : "Status could not be updated.";
       setError(message);
       toast.error(message);
     }
   }
-  return (
+  return <EntityListWorkspace title="Suppliers and delivery zones">{(
     <section className="mt-10 border-t border-slate-200 pt-10">
       <div>
         <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#003893]">
           Operations
         </p>
         <h2 className="mt-2 text-2xl font-extrabold tracking-tight">
-          Suppliers and delivery zones
+          {supplierOnly ? "Suppliers" : "Suppliers and delivery zones"}
         </h2>
         <p className="mt-2 text-sm text-slate-500">
           Keep purchasing contacts and Nepal delivery rules aligned with the
@@ -245,8 +250,8 @@ export function AdminLogisticsManagement({
           Loading operations data…
         </div>
       ) : (
-        <div className="mt-6 grid gap-6 xl:grid-cols-2">
-          <Card>
+        <div className="mt-6 grid gap-6 ">
+          <EntityFormPanel formKey="0"><Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between gap-2 text-base">
                 <span className="flex items-center gap-2 text-[#003893]">
@@ -332,8 +337,8 @@ export function AdminLogisticsManagement({
                 />
               </form>
             </CardContent>
-          </Card>
-          <Card>
+          </Card></EntityFormPanel>
+          {!supplierOnly && <EntityFormPanel formKey="1"><Card>
             <CardHeader>
               <CardTitle className="flex items-center justify-between gap-2 text-base">
                 <span className="flex items-center gap-2 text-[#003893]">
@@ -434,8 +439,8 @@ export function AdminLogisticsManagement({
                 />
               </form>
             </CardContent>
-          </Card>
-          <ListCard
+          </Card></EntityFormPanel>}
+          <EntityListPanel formKey="0"><ListCard
             title="Supplier directory"
             icon={<Building2 size={17} />}
             headers={["Supplier", "Contact", "Status"]}
@@ -459,8 +464,8 @@ export function AdminLogisticsManagement({
             ])}
             ids={suppliers.map((row) => row.id)}
             onEdit={editSupplier}
-          />
-          <ListCard
+          /></EntityListPanel>
+          {!supplierOnly && <EntityListPanel formKey="1"><ListCard
             title="Delivery zones"
             icon={<Truck size={17} />}
             headers={["Zone", "Branch", "Rules", "Status"]}
@@ -480,11 +485,11 @@ export function AdminLogisticsManagement({
             ])}
             ids={zones.map((row) => row.id)}
             onEdit={editZone}
-          />
+          /></EntityListPanel>}
         </div>
       )}
     </section>
-  );
+  )}</EntityListWorkspace>;
 }
 
 function Field({

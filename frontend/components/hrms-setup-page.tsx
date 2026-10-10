@@ -1,4 +1,7 @@
 "use client";
+import { RecordTable } from "@/components/entity-record-table";
+import { EntityListWorkspace, EntityListPanel, showEntityList, EntityFormPanel , entitySaveComplete , routeEntityEdit, useEntityRecord , useWorkspaceSelection } from "@/components/entity-list-panel";
+import { useOfflineRefresh } from "@/lib/offline/hooks";
 
 /* eslint-disable react-hooks/set-state-in-effect -- load protected HR setup data after the selected register changes. */
 
@@ -38,7 +41,7 @@ type FormState = { name: string; code: string; description: string; isActive: bo
 const emptyForm: FormState = { name: "", code: "", description: "", isActive: true };
 
 export function HrmsSetupPage() {
-  const [active, setActive] = useState<RegisterId>("DEPARTMENT");
+  const [active, setActive] = useWorkspaceSelection<RegisterId>("register", "DEPARTMENT");
   const [rows, setRows] = useState<HrmsSetupItem[]>([]);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [editingId, setEditingId] = useState<string | null>(null);
@@ -58,6 +61,7 @@ export function HrmsSetupPage() {
     }
   }, [active]);
 
+  useOfflineRefresh(load, "/api/hrms/");
   useEffect(() => { void load(); }, [load]);
 
   function resetForm() {
@@ -70,7 +74,8 @@ export function HrmsSetupPage() {
     resetForm();
   }
 
-  function edit(item: HrmsSetupItem) {
+  useEntityRecord(rows, edit, "0");
+  function edit(item: HrmsSetupItem) { if (routeEntityEdit(item.id, "0")) return;
     setEditingId(item.id);
     setForm({ name: item.name, code: item.code ?? "", description: item.description ?? "", isActive: item.isActive });
   }
@@ -93,8 +98,8 @@ export function HrmsSetupPage() {
       }
       resetForm();
       await load();
-      if (!addAnother) document.getElementById("hrms-setup-list")?.scrollIntoView({ behavior: "smooth", block: "start" });
-    } catch (error) {
+      if (!addAnother) showEntityList();
+     entitySaveComplete(); } catch (error) {
       toast.error(error instanceof Error ? error.message : "The HR setup entry could not be saved.");
     } finally {
       setSaving(false);
@@ -107,14 +112,14 @@ export function HrmsSetupPage() {
       await updateHrmsSetupItem(token(), active, item.id, { name: item.name, code: item.code, description: item.description, isActive: !item.isActive });
       toast.success(`${item.name} is now ${item.isActive ? "inactive" : "active"}.`);
       await load();
-    } catch (error) {
+     entitySaveComplete(); } catch (error) {
       toast.error(error instanceof Error ? error.message : "The item status could not be changed.");
     } finally {
       setSaving(false);
     }
   }
 
-  return <div className="mt-7 space-y-6">
+  return <EntityListWorkspace title="Setup">{<div className="mt-7 space-y-6">
     <div className="flex flex-wrap items-end justify-between gap-4">
       <div>
         <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#003893]">HR and payroll configuration</p>
@@ -132,21 +137,21 @@ export function HrmsSetupPage() {
       </button>)}
     </div>
 
-    <div className="grid gap-6 2xl:grid-cols-[minmax(0,1fr)_390px]">
-      <Card id="hrms-setup-list">
+    <div className="grid min-w-0 gap-6">
+      <EntityListPanel formKey="0"><Card id="hrms-setup-list">
         <CardHeader><div className="flex items-center justify-between gap-3"><CardTitle>{registerName}</CardTitle><span className="text-xs font-semibold text-slate-500">{rows.length} item{rows.length === 1 ? "" : "s"}</span></div></CardHeader>
         <CardContent>
-          {loading ? <p className="py-12 text-center text-sm text-slate-500">Loading {registerName.toLowerCase()}…</p> : <div className="overflow-x-auto"><table className="w-full min-w-[650px] text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Code</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{rows.map((item) => <tr key={item.id}><td className="px-4 py-4 font-bold text-slate-900">{item.name}</td><td className="px-4 py-4 font-mono text-xs text-slate-600">{item.code || "—"}</td><td className="max-w-md px-4 py-4 text-slate-600">{item.description || "—"}</td><td className="px-4 py-4"><Badge variant={item.isActive ? "secondary" : "outline"}>{item.isActive ? "Active" : "Inactive"}</Badge></td><td className="px-4 py-4"><div className="flex justify-end gap-1"><Button type="button" variant="ghost" size="sm" onClick={() => edit(item)} disabled={saving}><Pencil size={15} />Edit</Button><Button type="button" variant="outline" size="sm" onClick={() => void toggle(item)} disabled={saving}>{item.isActive ? "Deactivate" : "Activate"}</Button></div></td></tr>)}{!rows.length && <tr><td colSpan={5} className="px-4 py-12 text-center text-slate-500">No {registerName.toLowerCase()} yet. Create the first entry using the form.</td></tr>}</tbody></table></div>}
+          {loading ? <p className="py-12 text-center text-sm text-slate-500">Loading {registerName.toLowerCase()}…</p> : <div className="overflow-x-auto"><RecordTable className="w-full min-w-[650px] text-left text-sm"><thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500"><tr><th className="px-4 py-3">Name</th><th className="px-4 py-3">Code</th><th className="px-4 py-3">Description</th><th className="px-4 py-3">Status</th><th className="px-4 py-3 text-right">Actions</th></tr></thead><tbody className="divide-y divide-slate-100">{rows.map((item) => <tr key={item.id}><td className="px-4 py-4 font-bold text-slate-900">{item.name}</td><td className="px-4 py-4 font-mono text-xs text-slate-600">{item.code || "—"}</td><td className="max-w-md px-4 py-4 text-slate-600">{item.description || "—"}</td><td className="px-4 py-4"><Badge variant={item.isActive ? "secondary" : "outline"}>{item.isActive ? "Active" : "Inactive"}</Badge></td><td className="px-4 py-4"><div className="flex justify-end gap-1"><Button type="button" variant="ghost" size="sm" onClick={() => edit(item)} disabled={saving}><Pencil size={15} />Edit</Button><Button type="button" variant="outline" size="sm" onClick={() => void toggle(item)} disabled={saving}>{item.isActive ? "Deactivate" : "Activate"}</Button></div></td></tr>)}{!rows.length && <tr><td colSpan={5} className="px-4 py-12 text-center text-slate-500">No {registerName.toLowerCase()} yet. Create the first entry using the form.</td></tr>}</tbody></RecordTable></div>}
         </CardContent>
-      </Card>
+      </Card></EntityListPanel>
 
-      <Card className="h-fit 2xl:sticky 2xl:top-24"><CardHeader><CardTitle>{editingId ? `Edit ${registerName} entry` : `Create ${registerName} entry`}</CardTitle></CardHeader><CardContent><form className="grid gap-4" onSubmit={(event) => { event.preventDefault(); void persist(); }}>
+      <EntityFormPanel formKey="0"><Card className="h-fit "><CardHeader><CardTitle>{editingId ? `Edit ${registerName} entry` : `Create ${registerName} entry`}</CardTitle></CardHeader><CardContent><form className="grid gap-4" onSubmit={(event) => { event.preventDefault(); void persist(); }}>
         <div className="grid gap-2"><Label htmlFor="hrms-setup-name">Name</Label><Input id="hrms-setup-name" required maxLength={160} value={form.name} onChange={(event) => setForm({ ...form, name: event.target.value })} placeholder={`e.g. ${active === "DEPARTMENT" ? "Pharmacy operations" : "New entry"}`} /></div>
         <div className="grid gap-2"><Label htmlFor="hrms-setup-code">Code <span className="font-normal text-slate-400">optional</span></Label><Input id="hrms-setup-code" maxLength={60} value={form.code} onChange={(event) => setForm({ ...form, code: event.target.value })} placeholder="Short internal code" /></div>
         <div className="grid gap-2"><Label htmlFor="hrms-setup-description">Description <span className="font-normal text-slate-400">optional</span></Label><Textarea id="hrms-setup-description" maxLength={1000} value={form.description} onChange={(event) => setForm({ ...form, description: event.target.value })} placeholder="How this entry should be used" /></div>
         <label className="flex items-center gap-2 text-sm font-semibold text-slate-700"><input type="checkbox" checked={form.isActive} onChange={(event) => setForm({ ...form, isActive: event.target.checked })} />Available for new records</label>
         <FormSaveActions mode={editingId ? "edit" : "create"} busy={saving} onCancel={resetForm} onSaveAndAnother={editingId ? undefined : () => void persist(true)} />
-      </form></CardContent></Card>
+      </form></CardContent></Card></EntityFormPanel>
     </div>
-  </div>;
+  </div>}</EntityListWorkspace>;
 }

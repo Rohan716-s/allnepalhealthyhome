@@ -73,7 +73,7 @@ public sealed record ProductDetailResponse(
     string? DemandSourceUrl = null,
     string? DemandSourceReference = null);
 
-public sealed record TrendingProductItem(Guid Id, string Name, string Slug, decimal SellingPrice, string? ImageUrl, IReadOnlyList<string> ImageUrls, bool PricesVisible = true);
+public sealed record TrendingProductItem(Guid Id, string Name, string Slug, decimal SellingPrice, string? ImageUrl, IReadOnlyList<string> ImageUrls, bool PricesVisible = true, int StockQuantity = 0);
 
 public sealed record PagedResponse<T>(IReadOnlyList<T> Items, int Page, int PageSize, int TotalItems, int TotalPages);
 

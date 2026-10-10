@@ -1,9 +1,33 @@
 import { getStoredTablePageSize } from "@/lib/table-preferences";
-import { prepareProductImageForUpload } from "@/lib/image-upload";
+
+import { OfflineError } from "@/lib/offline/db";
+import { localDocument, offlineRequest, setOfflineTransport } from "@/lib/offline/engine";
 
 export const API_BASE_URL = (
   process.env.NEXT_PUBLIC_API_BASE_URL ?? ""
 ).replace(/\/$/, "");
+
+export type FieldSalesProduct = { id: string; name: string; sku: string; price: number; unit: string; available: number; prescriptionRequired: boolean };
+export type FieldSalesRecord = { id: string; executiveId: string; customerId: string; kind: string; status: string; notes: string; amount: number; occurredAt: string; followUpAt?: string; orderId?: string; resultId?: string; reviewNote?: string; payloadJson: string };
+export type FieldSalesWorkspace = {
+  role: string; branchId?: string;
+  assignments: { id: string; executiveId: string; customerId: string; branchId: string; territory: string; isActive: boolean }[];
+  customers: { id: string; fullName: string; phone: string; creditLimit: number; paymentTermsDays: number; addresses: { id: string; label: string; streetTole: string; municipality: string }[] }[];
+  records: FieldSalesRecord[];
+  orders: { id: string; orderNumber: string; customerId: string; status: string; paymentStatus: string; total: number; createdAt: string; items: { productId: string; productName: string; quantity: number; unit: string; unitPrice: number }[] }[];
+  invoices: { id: string; invoiceNumber: string; orderId: string; customerId: string; total: number; paidAmount: number; dueAt?: string }[];
+  targets: { executiveId: string; targetAmount: number; discountLimitPercent: number; month: string }[];
+  summary: { sales: number; target: number; orders: number; pending: number; outstanding: number };
+};
+export type FieldSalesOptions = { executives: { id: string; fullName: string; branchId: string }[]; customers: { id: string; fullName: string; phone: string }[]; branches: { id: string; name: string }[] };
+export function fieldSalesRequest<T>(token: string, path: string, input?: unknown, method = "POST") {
+  return requestApi<T>(`/api/field-sales/${path}`, input === undefined ? {} : { method, body: JSON.stringify(input) }, token);
+}
+export function uploadFieldSalesProof(token: string, file: File) {
+  const body = new FormData(); body.append("file", file);
+  return requestApi<{ url: string }>("/api/field-sales/proof", { method: "POST", body }, token);
+}
+export function downloadFieldSalesProof(token: string, url: string) { return downloadOrderDocument(url, token); }
 const API_REQUEST_TIMEOUT_MS = 20_000;
 
 export function resolveMediaUrl(value?: string): string | undefined {
@@ -12,6 +36,51 @@ export function resolveMediaUrl(value?: string): string | undefined {
   if (value.startsWith("/api/") || value.startsWith("/uploads/"))
     return `${API_BASE_URL}${value}`;
   return value;
+}
+
+export type FinancialVoucher = {
+  id: string; number: string; type: string; voucherDate: string; reference: string; narration: string;
+  debitAccount: string; creditAccount: string; amount: number; method: string; chequeNumber?: string;
+  bankName?: string; payee?: string; status: "DRAFT" | "POSTED"; branchId?: string; branchName?: string;
+  invoiceId?: string; supplierInvoiceId?: string; invoiceNumber?: string; partyName?: string;
+  revision: number; postedAt?: string; createdAt: string; updatedAt: string;
+};
+export type FinancialInvoiceOption = { id: string; invoiceNumber: string; partyId: string; partyName: string; branchId?: string; total: number; paidAmount: number; balance: number; dueAt?: string };
+export type FinancialOptions = { branches: { id: string; name: string }[]; accounts: { id: string; code: string; name: string; accountType: string }[]; customerInvoices: FinancialInvoiceOption[] | null; supplierInvoices: FinancialInvoiceOption[] | null };
+export type FinancialVoucherInput = Pick<FinancialVoucher, "type" | "voucherDate" | "reference" | "narration" | "debitAccount" | "creditAccount" | "amount" | "method"> & {
+  chequeNumber?: string; bankName?: string; payee?: string; branchId?: string; invoiceId?: string; supplierInvoiceId?: string; revision?: number;
+};
+export type AutoVoucher = { id: string; entryDate: string; reference: string; description: string; debitAccount: string; creditAccount: string; amount: number; status: string };
+export type FinancialDebtorLedger = { opening: number; entries: { id: string; entryDate: string; entryType: string; amount: number; description: string; reference?: string }[] };
+const financialPath = (superAdmin: boolean) => `/api/${superAdmin ? "superadmin" : "admin"}/sales-purchase/finance`;
+export function getFinancialOptions(token: string, superAdmin = false, branchId?: string, from?: string, to?: string) {
+  const query = new URLSearchParams(); if (branchId) query.set("branchId", branchId); if (from) query.set("from", from); if (to) query.set("to", to);
+  return requestApi<FinancialOptions>(`${financialPath(superAdmin)}/options?${query}`, {}, token);
+}
+export function getFinancialVouchers(token: string, filters: { from?: string; to?: string; type?: string; status?: string; search?: string; branchId?: string } = {}, superAdmin = false) {
+  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => !!value) as [string, string][]);
+  return requestApi<FinancialVoucher[]>(`${financialPath(superAdmin)}/vouchers?${query}`, {}, token);
+}
+export function getFinancialVoucher(token: string, id: string, superAdmin = false) { return requestApi<FinancialVoucher>(`${financialPath(superAdmin)}/vouchers/${encodeURIComponent(id)}`, {}, token); }
+export function saveFinancialVoucher(token: string, input: FinancialVoucherInput, id?: string, superAdmin = false) {
+  return requestApi<FinancialVoucher>(`${financialPath(superAdmin)}/vouchers${id ? `/${id}` : ""}`, { method: id ? "PUT" : "POST", body: JSON.stringify(input) }, token);
+}
+export function transitionFinancialVoucher(token: string, voucher: FinancialVoucher, action: "post" | "unpost", reason: string, superAdmin = false) {
+  return requestApi<FinancialVoucher>(`${financialPath(superAdmin)}/vouchers/${voucher.id}/${action}`, { method: "POST", body: JSON.stringify({ revision: voucher.revision, reason }) }, token);
+}
+export function editFinancialNarration(token: string, voucher: FinancialVoucher, narration: string, reason: string, superAdmin = false) {
+  return requestApi<FinancialVoucher>(`${financialPath(superAdmin)}/vouchers/${voucher.id}/narration`, { method: "PUT", body: JSON.stringify({ revision: voucher.revision, narration, reason }) }, token);
+}
+export function getFinancialPrint(token: string, id: string, superAdmin = false) {
+  return requestApi<FinancialVoucher>(`${financialPath(superAdmin)}/vouchers/${id}/print`, {}, token);
+}
+export function getFinancialAutoVouchers(token: string, from?: string, to?: string, superAdmin = false, branchId?: string) {
+  const query = new URLSearchParams(); if (from) query.set("from", from); if (to) query.set("to", to); if (branchId) query.set("branchId", branchId);
+  return requestApi<AutoVoucher[]>(`${financialPath(superAdmin)}/auto-vouchers?${query}`, {}, token);
+}
+export function getFinancialDebtorLedger(token: string, customerId: string, filters: { branchId?: string; from?: string; to?: string }, superAdmin = false) {
+  const query = new URLSearchParams(Object.entries(filters).filter(([, value]) => !!value) as [string, string][]);
+  return requestApi<FinancialDebtorLedger>(`${financialPath(superAdmin)}/debtor-ledger/${customerId}?${query}`, {}, token);
 }
 
 export type HealthResponse = { status: string };
@@ -571,7 +640,7 @@ export type Product = {
   demandSourceUrl?: string;
   demandSourceReference?: string;
 };
-export type TrendingProduct = { id: string; name: string; slug: string; sellingPrice: number; imageUrl?: string; imageUrls: string[]; pricesVisible?: boolean };
+export type TrendingProduct = { stockQuantity: number; id: string; name: string; slug: string; sellingPrice: number; imageUrl?: string; imageUrls: string[]; pricesVisible?: boolean };
 export type ProductDetail = Product & {
   manufacturer: string;
   description?: string;
@@ -739,6 +808,7 @@ export type StaffPrescription = {
   }[];
 };
 export type StaffOrderListItem = {
+  amountDue?: number;
   id: string;
   orderNumber: string;
   customerName: string;
@@ -784,6 +854,7 @@ export type NearbyDeliveryRider = {
   lastUpdatedAt: string;
 };
 export type StaffOrder = {
+  amountDue?: number;
   id: string;
   orderNumber: string;
   customerName: string;
@@ -830,6 +901,7 @@ export type StaffOrder = {
     deliveryStaff: string;
     status: string;
     acceptedAt?: string;
+    arrivedAt?: string;
     pickedUpAt?: string;
     outForDeliveryAt?: string;
     deliveredAt?: string;
@@ -842,6 +914,7 @@ export type StaffOrder = {
       longitude: number;
       address: string;
     } | null;
+    pickupAddress?: string;
   };
 };
 export function getAdminLiveDeliveries(token: string, superAdmin = false): Promise<DeliveryTrackingSnapshot[]> {
@@ -1187,12 +1260,14 @@ export type AdminOrderDetail = {
     deliveryStaff: string;
     status: string;
     acceptedAt?: string;
+    arrivedAt?: string;
     pickedUpAt?: string;
     outForDeliveryAt?: string;
     deliveredAt?: string;
     failedAt?: string;
     failureReason?: string;
     notes?: string;
+    currentLocation?: DeliveryLocationSnapshot | null;
   };
 };
 export type AdminInvoice = {
@@ -1370,7 +1445,9 @@ export type DeliveryOrderRequirements = {
   hasDestinationCoordinates: boolean;
 };
 export type RiderOrderCustomer = { id: string; name: string; phone: string; email: string; accountType: string; addresses: { id: string; label: string; province: string; district: string; municipality: string; ward: string; streetTole: string; landmark?: string; phone: string; latitude?: number; longitude?: number }[] };
-export type RiderOrderProduct = { id: string; name: string; sku: string; unit: string; sellingPrice: number; availableQuantity: number; prescriptionRequired: boolean; allowBulk: boolean; allowSingle: boolean; minimumQuantity: number };
+export type RiderOrderProduct = { id: string; name: string; sku: string; unit: string; sellingPrice: number; availableQuantity: number; prescriptionRequired: boolean; allowBulk: boolean; allowSingle: boolean; minimumQuantity: number; brand?: string; barcode?: string };
+export type RiderOrderInput = { customerId: string; addressId: string; items: { productId: string; quantity: number }[]; paymentMethod?: string; notes?: string; orderMode?: string; requestId?: string; expectedTotal?: number };
+export type RiderOrderPreview = { subtotal: number; deliveryFee: number; total: number; items: { productId: string; name: string; quantity: number; unitPrice: number; lineTotal: number }[] };
 export type RiderOrderSettings = { mode: "BULK_ONLY" | "SINGLE_ONLY" | "BULK_AND_SINGLE"; minimumBulkQuantity: number };
 export type BranchOperations = { branchId: string; branchName: string; orderCount: number; customerCount: number; pharmacyOrderCount: number; pendingPaymentCount: number; assignedRiderCount: number; deliveredCount: number; orderValue: number; rangeStart: string; rangeEnd: string; productCount: number; riderCount: number; paidPaymentCount: number; paidPaymentAmount: number };
 export type CustomerStatement = { customerId: string; customerName: string; customerPhone: string; from: string; to: string; orderCount: number; billedAmount: number; paidAmount: number; balance: number; orders: { orderId: string; orderNumber: string; createdAt: string; status: string; paymentStatus: string; paymentMethod: string; billedAmount: number; paidAmount: number; balance: number }[] };
@@ -2006,6 +2083,22 @@ async function request<T>(
   init: RequestInit = {},
   token?: string,
 ): Promise<T> {
+  try {
+    const result = await offlineRequest<T>(path, init, token, requestNetwork);
+    if (typeof window !== "undefined" && !["GET", "HEAD"].includes((init.method ?? "GET").toUpperCase())) window.dispatchEvent(new CustomEvent("anhh-form-saved", { detail: { path } }));
+    return result;
+  }
+  catch (error) {
+    if (error instanceof OfflineError) throw new ApiError(error.message, error.status);
+    throw error;
+  }
+}
+
+async function requestNetwork<T>(
+  path: string,
+  init: RequestInit = {},
+  token?: string,
+): Promise<T> {
   const headers = new Headers(init.headers);
   if (!(init.body instanceof FormData))
     headers.set("Content-Type", "application/json");
@@ -2050,7 +2143,7 @@ async function request<T>(
     : ((await response.json()) as T);
 }
 
-async function requestApi<T>(
+export async function requestApi<T>(
   path: string,
   init: RequestInit = {},
   token?: string,
@@ -3660,7 +3753,10 @@ export function getRiderOrderProducts(search: string, token: string): Promise<Ri
 export function getRiderOrderSettings(token: string): Promise<RiderOrderSettings> {
   return request("/api/delivery/order-settings", {}, token);
 }
-export function createRiderOrder(input: { customerId: string; addressId: string; items: { productId: string; quantity: number }[]; paymentMethod?: string; notes?: string; orderMode?: string }, token: string): Promise<{ id: string; orderNumber: string; status: string; deliveryStatus: string; total: number }> {
+export function previewRiderOrder(input: RiderOrderInput, token: string): Promise<RiderOrderPreview> {
+  return requestApi("/api/delivery/orders/preview", { method: "POST", body: JSON.stringify(input) }, token);
+}
+export function createRiderOrder(input: RiderOrderInput, token: string): Promise<{ id: string; orderNumber: string; status: string; deliveryStatus: string; total: number }> {
   return requestApi("/api/delivery/orders", { method: "POST", body: JSON.stringify(input) }, token);
 }
 export function updatePharmacistOrder(
@@ -3741,7 +3837,7 @@ export function markAllStaffNotificationsRead(
 }
 export function transitionDelivery(
   id: string,
-  action: "accept" | "pickup" | "start" | "delivered" | "failed",
+  action: "accept" | "arrived" | "pickup" | "start" | "delivered" | "failed",
   input: unknown,
   token: string,
 ): Promise<StaffOrder> {
@@ -3780,6 +3876,13 @@ export async function uploadOrderDocument(id: string, kind: string, file: File, 
 }
 export async function downloadOrderDocument(url: string, token: string): Promise<void> {
   const path = url.startsWith("http") ? url : `${API_BASE_URL}${url}`;
+  const saved = await localDocument(url, token);
+  if (saved) {
+    const href = URL.createObjectURL(saved);
+    const anchor = document.createElement("a"); anchor.href = href; anchor.download = "saved-order-document"; anchor.click();
+    window.setTimeout(() => URL.revokeObjectURL(href), 1000);
+    return;
+  }
   const response = await fetchWithNetworkHandling(path, { headers: { Authorization: `Bearer ${token}` } });
   if (!response.ok) {
     const payload = await response.json().catch(() => null) as { message?: string; detail?: string } | null;
@@ -3796,6 +3899,9 @@ export async function downloadOrderDocument(url: string, token: string): Promise
     anchor.remove();
   } finally { URL.revokeObjectURL(objectUrl); }
 }
+
+// Sync uses the original network transport, so it cannot re-enqueue its own requests.
+setOfflineTransport(requestNetwork);
 export function getOrderPaymentInstructions(id: string, token: string): Promise<PaymentInstructions> {
   return request<PaymentInstructions>(`/api/orders/${id}/payment-instructions`, {}, token);
 }
@@ -6040,9 +6146,7 @@ export async function uploadAdminMedia(
   superAdmin = true,
   onProgress?: (percent: number) => void,
 ): Promise<AdminMediaAsset> {
-  const uploadFile = kind.toUpperCase() === "PRODUCT"
-    ? await prepareProductImageForUpload(file)
-    : file;
+  const uploadFile = file;
   const body = new FormData();
   body.append("file", uploadFile);
   body.append("kind", kind);
@@ -6275,3 +6379,7 @@ export function deletePrescriptionItem(
 }
 
 export { ApiError };
+
+export function getCommerceBranches(token: string, superAdmin = false) {
+  return requestApi<AdminBranch[]>(`${commercePath(superAdmin)}/branches`, {}, token);
+}

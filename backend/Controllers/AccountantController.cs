@@ -15,7 +15,7 @@ namespace backend.Controllers;
 public sealed class AccountantController(ApplicationDbContext db) : ControllerBase
 {
     private Guid StaffId => User.TryGetStaffId(out var id) ? id : Guid.Empty;
-    private bool IsFinanceUser => User.IsStaffRole(StaffRoles.Accountant, StaffRoles.SuperAdmin);
+    private bool IsFinanceUser => User.TryGetStaffId(out _);
     private bool Can(string permission) => IsFinanceUser && User.HasStaffPermission(permission);
     private string Role => User.FindFirstValue(ClaimTypes.Role) ?? StaffRoles.Accountant;
     private Guid? ActorBranchId => Guid.TryParse(User.FindFirstValue("branch_id"), out var id) ? id : null;
@@ -213,11 +213,13 @@ public sealed class AccountantController(ApplicationDbContext db) : ControllerBa
     [HttpGet("accounting-summary")]
     public async Task<ActionResult<AccountingSummaryResponse>> AccountingSummary(DateTime? from, DateTime? to, CancellationToken ct)
     {
-        if (!Can(AppPermissions.FinanceInvoicesView)) return Forbid(); var (start, end) = Range(from, to); var balances = new Dictionary<string, (decimal Debit, decimal Credit)>(StringComparer.OrdinalIgnoreCase); void Add(string account, decimal debit, decimal credit) { balances.TryGetValue(account, out var value); balances[account] = (value.Debit + debit, value.Credit + credit); }
-        var invoices = await ScopeInvoices(db.Invoices.AsNoTracking()).Where(x => x.IssuedAt >= start && x.IssuedAt < end).ToListAsync(ct); foreach (var x in invoices) { Add("Accounts Receivable", x.Total, 0); Add("Sales Revenue", 0, x.Total - x.TaxAmount); Add("VAT Payable", 0, x.TaxAmount); }
+        if (!Can(AppPermissions.FinanceInvoicesView) && !(User.HasStaffPermission(SalesPurchasePermissions.View) && User.HasStaffPermission(SalesPurchasePermissions.JournalView))) return Forbid(); var (start, end) = Range(from, to); var balances = new Dictionary<string, (decimal Debit, decimal Credit)>(StringComparer.OrdinalIgnoreCase); void Add(string account, decimal debit, decimal credit) { balances.TryGetValue(account, out var value); balances[account] = (value.Debit + debit, value.Credit + credit); }
+        var invoiceAdjustments = await db.FinancialVouchers.AsNoTracking().Where(x => x.Status == "POSTED" && x.InvoiceId != null && (x.Type == "CREDIT_NOTE" || x.Type == "DEBIT_NOTE")).GroupBy(x => x.InvoiceId).Select(g => new { Id = g.Key, Amount = g.Sum(x => x.Type == "DEBIT_NOTE" ? x.Amount : -x.Amount) }).ToDictionaryAsync(x => x.Id!.Value, x => x.Amount, ct);
+        var supplierAdjustments = await db.FinancialVouchers.AsNoTracking().Where(x => x.Status == "POSTED" && x.SupplierInvoiceId != null && (x.Type == "SUPPLIER_CREDIT" || x.Type == "SUPPLIER_DEBIT")).GroupBy(x => x.SupplierInvoiceId).Select(g => new { Id = g.Key, Amount = g.Sum(x => x.Type == "SUPPLIER_CREDIT" ? x.Amount : -x.Amount) }).ToDictionaryAsync(x => x.Id!.Value, x => x.Amount, ct);
+        var invoices = await ScopeInvoices(db.Invoices.AsNoTracking()).Where(x => x.IssuedAt >= start && x.IssuedAt < end).ToListAsync(ct); foreach (var x in invoices) { var originalTotal = x.Total - invoiceAdjustments.GetValueOrDefault(x.Id); Add("Accounts Receivable", originalTotal, 0); Add("Sales Revenue", 0, originalTotal - x.TaxAmount); Add("VAT Payable", 0, x.TaxAmount); }
         var payments = await ScopePayments(db.AccountantPayments.AsNoTracking()).Where(x => x.PaymentDate >= start && x.PaymentDate < end && x.Status == "CLEARED").ToListAsync(ct); foreach (var x in payments) { Add(x.Method == "CASH" ? "Cash" : x.Method == "CHEQUE" ? "Cheques in Hand" : "Bank", x.Amount, 0); if (x.InvoiceId.HasValue) Add("Accounts Receivable", 0, x.Amount); else Add("Accounts Payable", 0, x.Amount); }
         var expenses = await ScopeExpenses(db.BusinessExpenses.AsNoTracking()).Where(x => x.ExpenseDate >= start && x.ExpenseDate < end).ToListAsync(ct); foreach (var x in expenses) { Add(x.Category, x.Amount, 0); Add(x.PaymentMethod == "CASH" ? "Cash" : "Bank", 0, x.Amount); }
-        var supplierRows = await ScopeSupplierInvoices(db.SupplierInvoices.AsNoTracking()).Where(x => x.InvoiceDate >= start && x.InvoiceDate < end).ToListAsync(ct); foreach (var x in supplierRows) { Add("Purchases / Inventory", x.Total, 0); Add("Accounts Payable", 0, x.Total); }
+        var supplierRows = await ScopeSupplierInvoices(db.SupplierInvoices.AsNoTracking()).Where(x => x.InvoiceDate >= start && x.InvoiceDate < end).ToListAsync(ct); foreach (var x in supplierRows) { var originalTotal = x.Total - supplierAdjustments.GetValueOrDefault(x.Id); Add("Purchases / Inventory", originalTotal, 0); Add("Accounts Payable", 0, originalTotal); }
         var journalRows = await ScopeJournal(db.JournalEntries.AsNoTracking()).Where(x => x.EntryDate >= start && x.EntryDate < end && x.Status == "POSTED").ToListAsync(ct); foreach (var x in journalRows) Add(x.DebitAccount, x.Amount, 0); foreach (var x in journalRows) Add(x.CreditAccount, 0, x.Amount);
         var openingQuery = db.AccountOpeningBalances.AsNoTracking().Include(x => x.Account).Where(x => x.OpeningDate < end);
         if (IsBranchScoped && ActorBranchId is Guid openingBranch) openingQuery = openingQuery.Where(x => x.BranchId == openingBranch);
@@ -229,7 +231,10 @@ public sealed class AccountantController(ApplicationDbContext db) : ControllerBa
             if (x.DebitAmount > 0) { Add(account, x.DebitAmount, 0); Add("Opening Balance Equity", 0, x.DebitAmount); }
             if (x.CreditAmount > 0) { Add(account, 0, x.CreditAmount); Add("Opening Balance Equity", x.CreditAmount, 0); }
         }
-        var trial = balances.Select(x => new AccountBalanceResponse(x.Key, x.Value.Debit, x.Value.Credit, x.Value.Debit - x.Value.Credit)).OrderBy(x => x.Account).ToList(); var revenue = invoices.Sum(x => x.Subtotal); var expenseTotal = expenses.Sum(x => x.Amount); return Ok(new AccountingSummaryResponse(trial, revenue, expenseTotal, revenue - expenseTotal, invoices.Sum(x => Math.Max(0m, x.Total - x.PaidAmount)), supplierRows.Sum(x => Math.Max(0m, x.Total - x.PaidAmount)), payments.Where(x => x.InvoiceId != null).Sum(x => x.Amount) - expenseTotal, journalRows.Count));
+        var trial = balances.Select(x => new AccountBalanceResponse(x.Key, x.Value.Debit, x.Value.Credit, x.Value.Debit - x.Value.Credit)).OrderBy(x => x.Account).ToList(); var revenue = invoices.Sum(x => x.Subtotal); var voucherExpenseQuery = db.FinancialVouchers.AsNoTracking().Where(x => x.Status == "POSTED" && x.Type == "EXPENSE_PURCHASE" && x.VoucherDate >= start && x.VoucherDate < end);
+        if (IsBranchScoped) voucherExpenseQuery = voucherExpenseQuery.Where(x => ActorBranchId != null && x.BranchId == ActorBranchId);
+        var voucherExpenses = await voucherExpenseQuery.SumAsync(x => (decimal?)x.Amount, ct) ?? 0m;
+        var expenseTotal = expenses.Sum(x => x.Amount) + voucherExpenses; return Ok(new AccountingSummaryResponse(trial, revenue, expenseTotal, revenue - expenseTotal, invoices.Sum(x => Math.Max(0m, x.Total - x.PaidAmount)), supplierRows.Sum(x => Math.Max(0m, x.Total - x.PaidAmount)), payments.Where(x => x.InvoiceId != null).Sum(x => x.Amount) - expenses.Sum(x => x.Amount) + journalRows.Sum(x => (x.DebitAccount == "Cash" ? x.Amount : 0m) - (x.CreditAccount == "Cash" ? x.Amount : 0m)), journalRows.Count));
     }
 
     [HttpGet("reports/{type}")]

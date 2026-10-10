@@ -1,4 +1,5 @@
 "use client";
+import { EntityListWorkspace, EntityListPanel, EntityFormPanel , entitySaveComplete , routeEntityEdit, useEntityRecord } from "@/components/entity-list-panel";
 
 import { FormEvent, useEffect, useState } from "react";
 import { Clock3, Loader2, Pencil, X } from "lucide-react";
@@ -70,7 +71,8 @@ export function AdminDeliverySlots({
     setEditing(null);
     setForm(blank);
   }
-  function edit(row: AdminDeliverySlot) {
+  useEntityRecord(rows, edit, "0");
+  function edit(row: AdminDeliverySlot) { if (routeEntityEdit(row.id, "0")) return;
     setEditing(row.id);
     setForm({
       label: row.label,
@@ -113,7 +115,7 @@ export function AdminDeliverySlots({
           : "Delivery time slot saved",
       );
       reset();
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       setError(
         e instanceof Error
           ? e.message
@@ -138,7 +140,7 @@ export function AdminDeliverySlots({
         ),
       );
       toast.success(`${row.label} ${enabled ? "Activated" : "Deactivated"}`);
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       const message =
         e instanceof Error
           ? e.message
@@ -148,7 +150,7 @@ export function AdminDeliverySlots({
     }
   }
 
-  return (
+  return <EntityListWorkspace title="Delivery Slots">{(
     <section className="mt-10 border-t border-slate-200 pt-10">
       <div>
         <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#003893]">
@@ -170,8 +172,8 @@ export function AdminDeliverySlots({
           {error}
         </p>
       )}
-      <div className="mt-6 grid gap-6 xl:grid-cols-[380px_1fr]">
-        <Card>
+      <div className="mt-6 grid gap-6 ">
+        <EntityFormPanel formKey="0"><Card>
           <CardHeader>
             <CardTitle className="flex items-center justify-between gap-2 text-base">
               <span className="flex items-center gap-2 text-[#003893]">
@@ -298,8 +300,8 @@ export function AdminDeliverySlots({
               />
             </form>
           </CardContent>
-        </Card>
-        <Card>
+        </Card></EntityFormPanel>
+        <EntityListPanel formKey="0"><Card>
           <CardHeader>
             <CardTitle className="text-base">Configured windows</CardTitle>
           </CardHeader>
@@ -371,8 +373,8 @@ export function AdminDeliverySlots({
               </div>
             )}
           </CardContent>
-        </Card>
+        </Card></EntityListPanel>
       </div>
     </section>
-  );
+  )}</EntityListWorkspace>;
 }

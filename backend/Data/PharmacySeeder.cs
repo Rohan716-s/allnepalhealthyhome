@@ -519,7 +519,7 @@ public static class PharmacySeeder
             (AppPermissions.AttendanceApprove, "Approve attendance corrections", "HRMS"),
             (AppPermissions.HrSettingsManage, "Manage shifts, grace periods and HRMS settings", "HRMS")
         };
-        foreach (var definition in definitions)
+        foreach (var definition in definitions.Concat(SalesPurchasePermissions.Definitions))
         {
             if (!await dbContext.AccessPermissions.AnyAsync(x => x.Key == definition.Key, cancellationToken))
                 dbContext.AccessPermissions.Add(new AccessPermission { Key = definition.Key, Description = definition.Description, Group = definition.Group, IsSystem = true });

@@ -29,7 +29,7 @@ public sealed class OrderDocumentsController(ApplicationDbContext db, IOrderDocu
     {
         if (!User.TryGetCustomerId(out var customerId)) return Unauthorized();
         if (!await db.Orders.AnyAsync(x => x.Id == orderId && x.CustomerId == customerId, ct)) return NotFound();
-        return Ok(await db.OrderDocuments.AsNoTracking().Where(x => x.OrderId == orderId && x.UploadedByCustomerId == customerId)
+        return Ok(await db.OrderDocuments.AsNoTracking().Where(x => x.OrderId == orderId && (x.UploadedByCustomerId == customerId || x.Kind == "DELIVERY_PROOF" && x.Order!.Status == OrderStatuses.Delivered))
             .OrderByDescending(x => x.CreatedAt).Select(x => Row(orderId, x, "/api/orders")).ToListAsync(ct));
     }
 
@@ -37,7 +37,7 @@ public sealed class OrderDocumentsController(ApplicationDbContext db, IOrderDocu
     public async Task<IActionResult> CustomerDownload(Guid orderId, Guid documentId, CancellationToken ct)
     {
         if (!User.TryGetCustomerId(out var customerId)) return Unauthorized();
-        var document = await db.OrderDocuments.AsNoTracking().SingleOrDefaultAsync(x => x.Id == documentId && x.OrderId == orderId && x.UploadedByCustomerId == customerId && x.Order!.CustomerId == customerId, ct);
+        var document = await db.OrderDocuments.AsNoTracking().SingleOrDefaultAsync(x => x.Id == documentId && x.OrderId == orderId && (x.UploadedByCustomerId == customerId || x.Kind == "DELIVERY_PROOF" && x.Order!.Status == OrderStatuses.Delivered) && x.Order!.CustomerId == customerId, ct);
         return document is null ? NotFound() : await Download(document, ct);
     }
 
@@ -49,7 +49,9 @@ public sealed class OrderDocumentsController(ApplicationDbContext db, IOrderDocu
         if (!User.IsStaffRole(StaffRoles.Delivery) || !User.TryGetStaffId(out var staffId)) return Forbid();
         var normalized = kind?.Trim().ToUpperInvariant();
         if (normalized is not ("INVOICE" or "CHEQUE" or "PAYMENT_PROOF" or "DELIVERY_PROOF")) return BadRequest(new { message = "Choose an invoice, cheque, payment proof, or delivery proof document type." });
-        if (!await db.DeliveryAssignments.AnyAsync(x => x.OrderId == orderId && x.DeliveryStaffId == staffId, ct)) return NotFound();
+        var assignment = await db.DeliveryAssignments.AsNoTracking().SingleOrDefaultAsync(x => x.OrderId == orderId && x.DeliveryStaffId == staffId, ct);
+        if (assignment is null) return NotFound();
+        if (assignment.Status != DeliveryStatuses.Arrived) return Conflict(new { message = "Delivery documents can only be uploaded after arrival, while completing delivery." });
         if (await db.OrderDocuments.CountAsync(x => x.OrderId == orderId && x.UploadedByStaffUserId == staffId, ct) >= 20) return Conflict(new { message = "This order has reached the delivery document upload limit." });
         var order = await db.Orders.SingleAsync(x => x.Id == orderId, ct);
         return await Save(order, file, normalized, null, staffId, "DELIVERY_DOCUMENT_UPLOADED", ct);
@@ -88,7 +90,7 @@ public sealed class OrderDocumentsController(ApplicationDbContext db, IOrderDocu
     public async Task<IActionResult> AdminDownload(Guid orderId, Guid documentId, CancellationToken ct)
     {
         if (!CanReadStaffDocuments) return Forbid();
-        var document = await db.OrderDocuments.AsNoTracking().SingleOrDefaultAsync(x => x.Id == documentId && x.OrderId == orderId && x.Order != null, ct);
+        var document = await db.OrderDocuments.AsNoTracking().Include(x => x.Order).SingleOrDefaultAsync(x => x.Id == documentId && x.OrderId == orderId && x.Order != null, ct);
         return document is null || !BranchAllowed(document.Order!.BranchId) ? NotFound() : await Download(document, ct);
     }
 

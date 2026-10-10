@@ -1,0 +1,18 @@
+{
+  "description": "Safely commit and push completed All Nepal Healthy Home project changes.",
+  "hooks": {
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$repo = git rev-parse --show-toplevel; if ($LASTEXITCODE -eq 0) { & (Join-Path $repo '.codex/hooks/auto-push.ps1') }\"",
+            "commandWindows": "powershell.exe -NoProfile -ExecutionPolicy Bypass -Command \"$repo = git rev-parse --show-toplevel; if ($LASTEXITCODE -eq 0) { & (Join-Path $repo '.codex/hooks/auto-push.ps1') }\"",
+            "timeout": 180,
+            "statusMessage": "Checking and pushing completed project changes"
+          }
+        ]
+      }
+    ]
+  }
+}

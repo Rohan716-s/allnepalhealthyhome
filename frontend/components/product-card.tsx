@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import {
   ArrowRight,
   FileText,
@@ -28,19 +28,28 @@ export function ProductVisual({
   large?: boolean;
 }) {
   const [failedImage, setFailedImage] = useState<string | null>(null);
+  const [failedSecondaryImage, setFailedSecondaryImage] = useState<string | null>(null);
   const images = product.imageUrls?.filter(Boolean).slice(0, 5) ?? (product.imageUrl ? [product.imageUrl] : []);
   const primaryImage = images[0] ?? product.imageUrl;
   const primaryImageSrc = primaryImage ? resolveMediaUrl(primaryImage) : undefined;
   const primaryImageFailed = primaryImageSrc !== undefined && failedImage === primaryImageSrc;
-  const secondaryImage = images[1];
+  const secondaryImageSrc = images[1] ? resolveMediaUrl(images[1]) : undefined;
+  const secondaryImage = secondaryImageSrc && failedSecondaryImage !== secondaryImageSrc ? secondaryImageSrc : undefined;
+  useEffect(() => {
+    const retry = () => { setFailedImage(null); setFailedSecondaryImage(null); };
+    window.addEventListener("online", retry);
+    window.addEventListener("focus", retry);
+    window.addEventListener("anhh-offline-refresh", retry);
+    return () => { window.removeEventListener("online", retry); window.removeEventListener("focus", retry); window.removeEventListener("anhh-offline-refresh", retry); };
+  }, []);
   return (
     <div
       className={`relative flex ${large ? "min-h-[320px]" : "h-48"} items-center justify-center overflow-hidden rounded-2xl bg-gradient-to-br ${product.tone} dark:from-slate-800/80 dark:to-slate-900/90`}
     >
       {(product.imageUrl || images.length) && !primaryImageFailed ? (
         <>
-        <img src={primaryImageSrc} alt="" onError={() => primaryImageSrc && setFailedImage(primaryImageSrc)} className={`h-full w-full object-contain p-5 mix-blend-multiply dark:mix-blend-normal transition-opacity duration-500 ${secondaryImage ? "group-hover:opacity-0" : ""}`} />
-        {secondaryImage && <img src={resolveMediaUrl(secondaryImage)} alt="" aria-hidden="true" className="absolute inset-0 h-full w-full object-contain p-5 mix-blend-multiply dark:mix-blend-normal opacity-0 transition-opacity duration-500 group-hover:opacity-100" />}
+        <img src={primaryImageSrc} alt="" onError={() => primaryImageSrc && setFailedImage(primaryImageSrc)} className={`h-full w-full object-contain p-5  dark:mix-blend-normal transition-opacity duration-500 ${secondaryImage ? "group-hover:opacity-0" : ""}`} />
+        {secondaryImage && <img src={secondaryImage} alt="" aria-hidden="true" onError={() => setFailedSecondaryImage(secondaryImage)} className="absolute inset-0 h-full w-full object-contain p-5  dark:mix-blend-normal opacity-0 transition-opacity duration-500 group-hover:opacity-100" />}
         </>
       ) : (
         <>
@@ -90,7 +99,7 @@ export function ProductCard({ product }: { product: Product }) {
       <Button
         variant="ghost"
         size="icon-sm"
-        onClick={(event) => toggleWishlist(product.id, event.currentTarget)}
+        onClick={(event) => toggleWishlist(product.id, event.currentTarget, product)}
         aria-label={
           wishlisted ? t("product.removeWishlist") : t("product.addWishlist")
         }
@@ -139,20 +148,22 @@ export function ProductCard({ product }: { product: Product }) {
       </Link>
       <div className="mt-2 flex items-center justify-between gap-2 border-t border-slate-100 px-2 pt-3 dark:border-slate-800">
         <span
-          className={`flex items-center gap-1 text-[11px] font-semibold ${product.stock < 10 ? "text-amber-600" : "text-emerald-600"}`}
+          className={`flex items-center gap-1 text-[11px] font-semibold ${product.stock < 1 ? "text-rose-600" : product.stock < 10 ? "text-amber-600" : "text-emerald-600"}`}
         >
           <span className="h-1.5 w-1.5 rounded-full bg-current" />
-          {product.stock < 10
-            ? `${product.stock} ${t("product.left")}`
-            : t("product.inStock")}
+          {product.stock < 1
+            ? copy.outOfStock
+            : product.stock < 10
+              ? `${product.stock} ${t("product.left")}`
+              : t("product.inStock")}
         </span>
         {product.prescriptionRequired ? (
           <ButtonLink href="/prescription" variant="outline" size="sm">
             <FileText /> {t("product.rxRequired")}
           </ButtonLink>
         ) : (
-          <Button size="sm" onClick={(event) => addToCart(product.id, 1, undefined, event.currentTarget, product)}>
-            <ShoppingBag /> {productCopy.buttonLabel || (bulkRequired ? copy.bulkMode : copy.addToCart) || t("product.add")}
+          <Button size="sm" disabled={product.stock < 1} onClick={(event) => addToCart(product.id, 1, undefined, event.currentTarget, product)}>
+            <ShoppingBag /> {product.stock < 1 ? copy.outOfStock : productCopy.buttonLabel || (bulkRequired ? copy.bulkMode : copy.addToCart) || t("product.add")}
           </Button>
         )}
       </div>

@@ -11,14 +11,13 @@ import { useSiteConfig } from "@/components/site-config-provider";
 import { staffToken, staffUser } from "@/components/staff-shell";
 import { formatPlatformDate } from "@/lib/date-time";
 import { parseWorkspaceLabels, workspaceLabel } from "@/lib/workspace-labels";
+import { canOpenCommerceDepartment } from "@/lib/sales-purchase-permissions";
 import { getStaffMe, type Staff } from "@/services/api";
 
 type Department = "home" | "sales" | "purchase";
 
 const roleKey = (role?: string) => role?.trim().toUpperCase() ?? "";
-const allowedFor = (department: Department, role: string) => department === "purchase"
-  ? ["SUPERADMIN", "ADMIN", "SUPERVISOR", "ACCOUNTANT"].includes(role)
-  : ["SUPERADMIN", "ADMIN", "SUPERVISOR", "ACCOUNTANT", "SALESEXECUTIVE"].includes(role);
+
 
 export function SalesPurchaseDepartmentWorkspace({ department, superAdmin = false }: { department: Department; superAdmin?: boolean }) {
   const router = useRouter();
@@ -42,7 +41,7 @@ export function SalesPurchaseDepartmentWorkspace({ department, superAdmin = fals
     const cachedRole = roleKey(cachedStaff?.role);
     const login = () => router.replace(`/staff/login?returnTo=${encodeURIComponent(pathname)}`);
 
-    if (!token || !cachedStaff || !allowedFor(department, cachedRole) || (superAdmin && cachedRole !== "SUPERADMIN")) {
+    if (!token || !cachedStaff || !canOpenCommerceDepartment(cachedStaff, department) || (superAdmin && cachedRole !== "SUPERADMIN")) {
       login();
       return () => { active = false; };
     }
@@ -52,7 +51,7 @@ export function SalesPurchaseDepartmentWorkspace({ department, superAdmin = fals
       .then((serverStaff) => {
         if (!active) return;
         const serverRole = roleKey(serverStaff.role);
-        if (!allowedFor(department, serverRole) || (superAdmin && serverRole !== "SUPERADMIN")) {
+        if (!canOpenCommerceDepartment(serverStaff, department) || (superAdmin && serverRole !== "SUPERADMIN")) {
           login();
           return;
         }
@@ -92,7 +91,6 @@ export function SalesPurchaseDepartmentWorkspace({ department, superAdmin = fals
   const profileLinks = [
     { label: "My Account", href: activeRole === "SUPERADMIN" ? "/superadmin" : "/admin" },
     { label: "My Orders", href: activeRole === "SUPERADMIN" ? "/superadmin/orders" : "/admin/orders" },
-    { label: "Wishlist", href: "/wishlist" },
   ];
 
   const clock = now ? new Intl.DateTimeFormat("en-NP", { timeZone: site.timeZone, hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: site.timeFormat === "12" }).format(now) : "—";

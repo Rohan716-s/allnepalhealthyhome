@@ -1,4 +1,6 @@
 "use client";
+import { EntityListWorkspace, EntityListPanel, showEntityList, EntityFormPanel , entitySaveComplete } from "@/components/entity-list-panel";
+import { LocationPicker } from "@/components/location-picker";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Building2, Edit3, Loader2, MapPin, Plus, Trash2 } from "lucide-react";
@@ -184,12 +186,12 @@ export function AdminBranchesPage({
           ? current.map((row) => (row.id === saved.id ? saved : row))
           : [saved, ...current],
       );
-      if (!saveAndAnother) router.push(listPath);
+      if (!saveAndAnother) showEntityList(listPath);
       else {
         setForm(blank);
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
-    } catch (reason) {
+     entitySaveComplete(); } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Branch could not be saved.";
       setError(message);
       toast.error(message);
@@ -213,7 +215,7 @@ export function AdminBranchesPage({
         ),
       );
       toast.success(`${row.name} is now ${isActive ? "active" : "inactive"}`);
-    } catch (reason) {
+     entitySaveComplete(); } catch (reason) {
       const message =
         reason instanceof Error
           ? reason.message
@@ -229,7 +231,7 @@ export function AdminBranchesPage({
       await setAdminEntityStatus("branch", deleteTarget.id, false, token(), superAdmin);
       setRows((current) => current.map((row) => row.id === deleteTarget.id ? { ...row, isActive: false } : row));
       toast.success("Branch deactivated.");
-    } catch (reason) {
+     entitySaveComplete(); } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Branch could not be removed.";
       setError(message); toast.error(message);
     } finally { setDeleteTarget(null); }
@@ -247,221 +249,7 @@ export function AdminBranchesPage({
       ),
     [rows, search, status],
   );
-  return (
-    <AdminShell superAdmin={superAdmin}>
-      <div className="flex flex-wrap items-end justify-between gap-4">
-        <div>
-          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#003893]">
-            Branches
-          </p>
-          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">
-            {view === "form"
-              ? editing
-                ? "Edit branch"
-                : "Create branch"
-              : "Branches and fulfilment"}
-          </h1>
-          <p className="mt-2 text-sm text-slate-500">
-            Manage the locations used by inventory, staff assignment, pickup,
-            and delivery operations.
-          </p>
-        </div>
-        {view === "list" && (
-          <Button
-            type="button"
-            onClick={() => router.push(`${listPath}/create`)}
-          >
-            <Plus size={16} />
-            Add branch
-          </Button>
-        )}
-      </div>
-      {view === "form" ? (
-        <Card className="mt-7">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 size={18} className="text-[#003893]" />
-              {editing ? "Branch details" : "New branch"}
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="flex min-h-64 items-center justify-center text-sm text-slate-500">
-                <Loader2 className="mr-2 animate-spin" size={18} />
-                Loading branch…
-              </div>
-            ) : (
-              <form
-                onSubmit={(event) => {
-                  event.preventDefault();
-                  void persist();
-                }}
-                className="grid gap-5 md:grid-cols-2"
-              >
-                <div className="grid gap-2 md:col-span-2">
-                  <Label htmlFor="branch-name">Branch name</Label>
-                  <Input
-                    id="branch-name"
-                    required
-                    value={form.name}
-                    onChange={(event) => field("name", event.target.value)}
-                    placeholder="Pokhara health centre"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="branch-code">Code</Label>
-                  <Input
-                    id="branch-code"
-                    value={form.code}
-                    onChange={(event) => field("code", event.target.value)}
-                    placeholder="PKR-001"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="branch-phone">Phone</Label>
-                  <Input
-                    id="branch-phone"
-                    value={form.phone}
-                    onChange={(event) => field("phone", event.target.value)}
-                    placeholder="061-..."
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="branch-email">Email</Label>
-                  <Input
-                    id="branch-email"
-                    type="email"
-                    value={form.email}
-                    onChange={(event) => field("email", event.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2 md:col-span-2">
-                  <Label htmlFor="branch-address">Address</Label>
-                  <Input
-                    id="branch-address"
-                    required
-                    value={form.address}
-                    onChange={(event) => field("address", event.target.value)}
-                    placeholder="Street and landmark"
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="branch-province">Province</Label>
-                  <Input
-                    id="branch-province"
-                    value={form.province}
-                    onChange={(event) => field("province", event.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="branch-district">District</Label>
-                  <Input
-                    id="branch-district"
-                    value={form.district}
-                    onChange={(event) => field("district", event.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="branch-municipality">Municipality</Label>
-                  <Input
-                    id="branch-municipality"
-                    value={form.municipality}
-                    onChange={(event) =>
-                      field("municipality", event.target.value)
-                    }
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="branch-ward">Ward</Label>
-                  <Input
-                    id="branch-ward"
-                    value={form.ward}
-                    onChange={(event) => field("ward", event.target.value)}
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="branch-street">Street / tole</Label>
-                  <Input
-                    id="branch-street"
-                    value={form.streetTole}
-                    onChange={(event) =>
-                      field("streetTole", event.target.value)
-                    }
-                  />
-                </div>
-                <div className="grid gap-2">
-                  <Label htmlFor="branch-landmark">Landmark</Label>
-                  <Input
-                    id="branch-landmark"
-                    value={form.landmark}
-                    onChange={(event) => field("landmark", event.target.value)}
-                  />
-                </div>
-                <div className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 md:col-span-2 sm:grid-cols-2">
-                  <div className="sm:col-span-2">
-                    <p className="text-sm font-extrabold text-blue-950">Branch pickup and attendance location</p>
-                    <p className="mt-1 text-xs leading-5 text-blue-800">Enter the real pharmacy coordinates to enable staff location verification and distance-based rider suggestions. Coordinates are never guessed; suggestions remain unavailable until a pickup location is configured.</p>
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="branch-latitude">Latitude</Label>
-                    <Input id="branch-latitude" type="number" step="any" min="-90" max="90" value={form.latitude} onChange={(event) => field("latitude", event.target.value)} placeholder="27.7091852" />
-                  </div>
-                  <div className="grid gap-2">
-                    <Label htmlFor="branch-longitude">Longitude</Label>
-                    <Input id="branch-longitude" type="number" step="any" min="-180" max="180" value={form.longitude} onChange={(event) => field("longitude", event.target.value)} placeholder="85.3077905" />
-                  </div>
-                </div>
-                <div className="flex flex-wrap gap-5 text-sm font-semibold text-slate-700 md:col-span-2">
-                  <label className="flex items-center gap-2">
-                    <Checkbox
-                      checked={form.deliveryEnabled}
-                      onChange={(event) =>
-                        field("deliveryEnabled", event.target.checked)
-                      }
-                    />
-                    Delivery enabled
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <Checkbox
-                      checked={form.pickupEnabled}
-                      onChange={(event) =>
-                        field("pickupEnabled", event.target.checked)
-                      }
-                    />
-                    Pickup enabled
-                  </label>
-                  <label className="flex items-center gap-2">
-                    <Checkbox
-                      checked={form.isActive}
-                      onChange={(event) =>
-                        field("isActive", event.target.checked)
-                      }
-                    />
-                    Branch active
-                  </label>
-                </div>
-                {error && (
-                  <p
-                    role="alert"
-                    className="rounded-xl bg-rose-50 p-3 text-sm font-semibold text-rose-700 md:col-span-2"
-                  >
-                    {error}
-                  </p>
-                )}
-                <div className="md:col-span-2">
-                  <FormSaveActions
-                    mode={editing ? "edit" : "create"}
-                    busy={saving}
-                    onCancel={() => router.push(listPath)}
-                    onSaveAndAnother={() => void persist(true)}
-                    saveLabel={editing ? "Save Changes" : "Save & List"}
-                  />
-                </div>
-              </form>
-            )}
-          </CardContent>
-        </Card>
-      ) : (
+  const entityList0 = (
         <>
           <Card className="mt-7">
             <CardHeader>
@@ -592,7 +380,223 @@ export function AdminBranchesPage({
             </CardContent>
           </Card>
         </>
-      )}
+      );
+  return <EntityListWorkspace title="Branches" enabled={view === "form"}>{(
+    <AdminShell superAdmin={superAdmin}>
+      <div className="flex flex-wrap items-end justify-between gap-4">
+        <div>
+          <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#003893]">
+            Branches
+          </p>
+          <h1 className="mt-2 text-3xl font-extrabold tracking-tight">
+            {view === "form"
+              ? editing
+                ? "Edit branch"
+                : "Create branch"
+              : "Branches and fulfilment"}
+          </h1>
+          <p className="mt-2 text-sm text-slate-500">
+            Manage the locations used by inventory, staff assignment, pickup,
+            and delivery operations.
+          </p>
+        </div>
+        {view === "list" && (
+          <Button
+            type="button"
+            onClick={() => router.push(`${listPath}/create`)}
+          >
+            <Plus size={16} />
+            Add branch
+          </Button>
+        )}
+      </div>
+      {(view === "form" ? <>(
+        <EntityFormPanel formKey="0"><Card className="mt-7">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Building2 size={18} className="text-[#003893]" />
+              {editing ? "Branch details" : "New branch"}
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="flex min-h-64 items-center justify-center text-sm text-slate-500">
+                <Loader2 className="mr-2 animate-spin" size={18} />
+                Loading branch…
+              </div>
+            ) : (
+              <form
+                onSubmit={(event) => {
+                  event.preventDefault();
+                  void persist();
+                }}
+                className="grid gap-5 md:grid-cols-2"
+              >
+                <div className="grid gap-2 md:col-span-2">
+                  <Label htmlFor="branch-name">Branch name</Label>
+                  <Input
+                    id="branch-name"
+                    required
+                    value={form.name}
+                    onChange={(event) => field("name", event.target.value)}
+                    placeholder="Pokhara health centre"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="branch-code">Code</Label>
+                  <Input
+                    id="branch-code"
+                    value={form.code}
+                    onChange={(event) => field("code", event.target.value)}
+                    placeholder="PKR-001"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="branch-phone">Phone</Label>
+                  <Input
+                    id="branch-phone"
+                    value={form.phone}
+                    onChange={(event) => field("phone", event.target.value)}
+                    placeholder="061-..."
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="branch-email">Email</Label>
+                  <Input
+                    id="branch-email"
+                    type="email"
+                    value={form.email}
+                    onChange={(event) => field("email", event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2 md:col-span-2">
+                  <Label htmlFor="branch-address">Address</Label>
+                  <Input
+                    id="branch-address"
+                    required
+                    value={form.address}
+                    onChange={(event) => field("address", event.target.value)}
+                    placeholder="Street and landmark"
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="branch-province">Province</Label>
+                  <Input
+                    id="branch-province"
+                    value={form.province}
+                    onChange={(event) => field("province", event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="branch-district">District</Label>
+                  <Input
+                    id="branch-district"
+                    value={form.district}
+                    onChange={(event) => field("district", event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="branch-municipality">Municipality</Label>
+                  <Input
+                    id="branch-municipality"
+                    value={form.municipality}
+                    onChange={(event) =>
+                      field("municipality", event.target.value)
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="branch-ward">Ward</Label>
+                  <Input
+                    id="branch-ward"
+                    value={form.ward}
+                    onChange={(event) => field("ward", event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="branch-street">Street / tole</Label>
+                  <Input
+                    id="branch-street"
+                    value={form.streetTole}
+                    onChange={(event) =>
+                      field("streetTole", event.target.value)
+                    }
+                  />
+                </div>
+                <div className="grid gap-2">
+                  <Label htmlFor="branch-landmark">Landmark</Label>
+                  <Input
+                    id="branch-landmark"
+                    value={form.landmark}
+                    onChange={(event) => field("landmark", event.target.value)}
+                  />
+                </div>
+                <div className="grid gap-3 rounded-xl border border-blue-100 bg-blue-50 p-4 md:col-span-2 sm:grid-cols-2">
+                  <div className="sm:col-span-2">
+                    <p className="text-sm font-extrabold text-blue-950">Branch pickup and attendance location</p>
+                    <p className="mt-1 text-xs leading-5 text-blue-800">Enter the real pharmacy coordinates to enable staff location verification and distance-based rider suggestions. Coordinates are never guessed; suggestions remain unavailable until a pickup location is configured.</p>
+                  </div>
+                  <div className="sm:col-span-2"><LocationPicker value={form.latitude && form.longitude ? { latitude: Number(form.latitude), longitude: Number(form.longitude) } : null} onChange={point => setForm(current => ({ ...current, latitude: point.latitude.toString(), longitude: point.longitude.toString() }))} /></div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="branch-latitude">Latitude</Label>
+                    <Input id="branch-latitude" type="number" step="any" min="-90" max="90" value={form.latitude} onChange={(event) => field("latitude", event.target.value)} placeholder="27.7091852" />
+                  </div>
+                  <div className="grid gap-2">
+                    <Label htmlFor="branch-longitude">Longitude</Label>
+                    <Input id="branch-longitude" type="number" step="any" min="-180" max="180" value={form.longitude} onChange={(event) => field("longitude", event.target.value)} placeholder="85.3077905" />
+                  </div>
+                </div>
+                <div className="flex flex-wrap gap-5 text-sm font-semibold text-slate-700 md:col-span-2">
+                  <label className="flex items-center gap-2">
+                    <Checkbox
+                      checked={form.deliveryEnabled}
+                      onChange={(event) =>
+                        field("deliveryEnabled", event.target.checked)
+                      }
+                    />
+                    Delivery enabled
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox
+                      checked={form.pickupEnabled}
+                      onChange={(event) =>
+                        field("pickupEnabled", event.target.checked)
+                      }
+                    />
+                    Pickup enabled
+                  </label>
+                  <label className="flex items-center gap-2">
+                    <Checkbox
+                      checked={form.isActive}
+                      onChange={(event) =>
+                        field("isActive", event.target.checked)
+                      }
+                    />
+                    Branch active
+                  </label>
+                </div>
+                {error && (
+                  <p
+                    role="alert"
+                    className="rounded-xl bg-rose-50 p-3 text-sm font-semibold text-rose-700 md:col-span-2"
+                  >
+                    {error}
+                  </p>
+                )}
+                <div className="md:col-span-2">
+                  <FormSaveActions
+                    mode={editing ? "edit" : "create"}
+                    busy={saving}
+                    onCancel={() => router.push(listPath)}
+                    onSaveAndAnother={() => void persist(true)}
+                    saveLabel={editing ? "Save Changes" : "Save & List"}
+                  />
+                </div>
+              </form>
+            )}
+          </CardContent>
+        </Card></EntityFormPanel>
+      )<EntityListPanel formKey="0">{entityList0}</EntityListPanel></> : entityList0)}
       <AlertDialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -603,5 +607,5 @@ export function AdminBranchesPage({
         </AlertDialogContent>
       </AlertDialog>
     </AdminShell>
-  );
+  )}</EntityListWorkspace>;
 }

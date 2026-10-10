@@ -8,7 +8,7 @@ function riderToken() {
   return window.localStorage.getItem("anhh-staff-access-token") ?? "";
 }
 
-export function RiderAvailabilityControl() {
+export function RiderAvailabilityControl({ variant = "full" }: { variant?: "full" | "compact" }) {
   const [availability, setAvailability] = useState<RiderAvailability | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -154,6 +154,20 @@ export function RiderAvailabilityControl() {
       ? "Available · location sharing is on"
       : "Available · waiting for a recent GPS location"
       : "Offline · location sharing is off";
+
+  if (variant === "compact") {
+    const shortStatus = loading ? "Checking" : availability?.hasActiveDelivery ? "On delivery" : isAvailable ? "Available" : "Offline";
+    return <div className="flex shrink-0 items-center gap-2" title={error || warning || statusLabel}>
+      <span className={`size-2.5 shrink-0 rounded-full ${loading ? "animate-pulse bg-amber-400" : availability?.hasActiveDelivery ? "bg-blue-500" : isAvailable ? "bg-emerald-500" : "bg-slate-400"}`} aria-label={shortStatus} />
+      <span className="hidden text-[11px] font-bold text-slate-600 dark:text-slate-300 sm:inline">{shortStatus}</span>
+      <button type="button" onClick={() => void toggleAvailability()} disabled={loading || busy || availability?.hasActiveDelivery} aria-label={isAvailable ? "Go offline" : availability?.hasActiveDelivery ? "On delivery" : "Go available"} className={`inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg px-2.5 text-[11px] font-extrabold transition disabled:cursor-not-allowed disabled:opacity-60 sm:px-3 sm:text-xs ${isAvailable ? "border border-slate-300 bg-white text-slate-700 hover:bg-slate-50 dark:border-slate-600 dark:bg-slate-800 dark:text-slate-100 dark:hover:bg-slate-700" : "bg-teal-700 text-white hover:bg-teal-800"}`}>
+        {busy ? <Loader2 size={13} className="animate-spin" /> : <MapPin size={13} />}
+        <span className="sm:hidden">{isAvailable ? "Go offline" : availability?.hasActiveDelivery ? "On delivery" : "Go online"}</span>
+        <span className="hidden sm:inline">{isAvailable ? "Go offline" : availability?.hasActiveDelivery ? "On delivery" : "Go available"}</span>
+      </button>
+      {(error || warning) && <span className="sr-only" role={error ? "alert" : "status"}>{error || warning}</span>}
+    </div>;
+  }
 
   return <section className="mb-5 flex flex-wrap items-center justify-between gap-4 rounded-2xl border border-slate-200 bg-white p-4 dark:border-slate-700 dark:bg-slate-900">
     <div className="flex min-w-0 items-start gap-3">

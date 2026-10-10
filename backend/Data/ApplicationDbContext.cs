@@ -5,6 +5,12 @@ namespace backend.Data;
 
 public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options) : DbContext(options)
 {
+    public DbSet<DeliveryCashCollection> DeliveryCashCollections => Set<DeliveryCashCollection>();
+    public DbSet<DeliveryHandoverRequest> DeliveryHandoverRequests => Set<DeliveryHandoverRequest>();
+    public DbSet<DeliveryRetryRequest> DeliveryRetryRequests => Set<DeliveryRetryRequest>();
+    public DbSet<SalesCustomerAssignment> SalesCustomerAssignments => Set<SalesCustomerAssignment>();
+    public DbSet<SalesExecutiveTarget> SalesExecutiveTargets => Set<SalesExecutiveTarget>();
+    public DbSet<SalesFieldRecord> SalesFieldRecords => Set<SalesFieldRecord>();
     public DbSet<SystemCheck> SystemChecks => Set<SystemCheck>();
     public DbSet<Customer> Customers => Set<Customer>();
     public DbSet<PharmacyDetails> PharmacyDetails => Set<PharmacyDetails>();
@@ -66,6 +72,7 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
     public DbSet<BusinessExpense> BusinessExpenses => Set<BusinessExpense>();
     public DbSet<BankReconciliation> BankReconciliations => Set<BankReconciliation>();
     public DbSet<TaxConfiguration> TaxConfigurations => Set<TaxConfiguration>();
+    public DbSet<FinancialVoucher> FinancialVouchers => Set<FinancialVoucher>();
     public DbSet<JournalEntry> JournalEntries => Set<JournalEntry>();
     public DbSet<CashHandover> CashHandovers => Set<CashHandover>();
     public DbSet<PartySector> PartySectors => Set<PartySector>();
@@ -123,6 +130,35 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        ConfigureAudited(modelBuilder.Entity<DeliveryCashCollection>(), "delivery_cash_collections");
+        modelBuilder.Entity<DeliveryCashCollection>().HasIndex(x => x.OrderId).IsUnique();
+        modelBuilder.Entity<DeliveryCashCollection>().Property(x => x.Amount).HasPrecision(18, 2);
+        modelBuilder.Entity<DeliveryCashCollection>().HasIndex(x => new { x.RiderId, x.HandoverRequestId });
+        ConfigureAudited(modelBuilder.Entity<DeliveryHandoverRequest>(), "delivery_handover_requests");
+        modelBuilder.Entity<DeliveryHandoverRequest>().HasIndex(x => new { x.RiderId, x.RequestId }).IsUnique();
+        modelBuilder.Entity<DeliveryHandoverRequest>().Property(x => x.Amount).HasPrecision(18, 2);
+        modelBuilder.Entity<DeliveryHandoverRequest>().Property(x => x.Reference).HasMaxLength(120);
+        modelBuilder.Entity<DeliveryHandoverRequest>().Property(x => x.Status).HasMaxLength(20);
+        modelBuilder.Entity<DeliveryHandoverRequest>().Property(x => x.ReviewNote).HasMaxLength(1000);
+        modelBuilder.Entity<DeliveryHandoverRequest>().HasOne(x => x.Rider).WithMany().HasForeignKey(x => x.RiderId).OnDelete(DeleteBehavior.Restrict);
+        ConfigureAudited(modelBuilder.Entity<DeliveryRetryRequest>(), "delivery_retry_requests");
+        modelBuilder.Entity<DeliveryRetryRequest>().HasIndex(x => new { x.RiderId, x.RequestId }).IsUnique();
+        modelBuilder.Entity<DeliveryRetryRequest>().Property(x => x.Reason).HasMaxLength(1000);
+        modelBuilder.Entity<DeliveryRetryRequest>().Property(x => x.ReviewNote).HasMaxLength(1000);
+        modelBuilder.Entity<DeliveryRetryRequest>().Property(x => x.Status).HasMaxLength(20);
+        modelBuilder.Entity<DeliveryRetryRequest>().HasOne(x => x.Rider).WithMany().HasForeignKey(x => x.RiderId).OnDelete(DeleteBehavior.Restrict);
+        modelBuilder.Entity<SalesCustomerAssignment>().HasIndex(x => new { x.ExecutiveId, x.CustomerId, x.BranchId }).IsUnique();
+        modelBuilder.Entity<SalesCustomerAssignment>().Property(x => x.Territory).HasMaxLength(160);
+        modelBuilder.Entity<SalesExecutiveTarget>().HasIndex(x => new { x.ExecutiveId, x.Month }).IsUnique();
+        modelBuilder.Entity<SalesExecutiveTarget>().Property(x => x.TargetAmount).HasPrecision(18, 2);
+        modelBuilder.Entity<SalesExecutiveTarget>().Property(x => x.DiscountLimitPercent).HasPrecision(5, 2);
+        modelBuilder.Entity<SalesFieldRecord>().HasIndex(x => new { x.ExecutiveId, x.RequestId }).IsUnique();
+        modelBuilder.Entity<SalesFieldRecord>().HasIndex(x => new { x.BranchId, x.Kind, x.Status });
+        modelBuilder.Entity<SalesFieldRecord>().Property(x => x.Kind).HasMaxLength(20);
+        modelBuilder.Entity<SalesFieldRecord>().Property(x => x.Status).HasMaxLength(30);
+        modelBuilder.Entity<SalesFieldRecord>().Property(x => x.Notes).HasMaxLength(2000);
+        modelBuilder.Entity<SalesFieldRecord>().Property(x => x.ReviewNote).HasMaxLength(2000);
+        modelBuilder.Entity<SalesFieldRecord>().Property(x => x.Amount).HasPrecision(18, 2);
         modelBuilder.Entity<SystemCheck>(entity =>
         {
             entity.ToTable("system_checks");
@@ -880,6 +916,31 @@ public class ApplicationDbContext(DbContextOptions<ApplicationDbContext> options
             entity.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.HandedByStaffUser).WithMany().HasForeignKey(x => x.HandedByStaffUserId).OnDelete(DeleteBehavior.Restrict);
             entity.HasOne(x => x.ReceivedByStaffUser).WithMany().HasForeignKey(x => x.ReceivedByStaffUserId).OnDelete(DeleteBehavior.Restrict);
+        });
+
+        ConfigureAudited(modelBuilder.Entity<FinancialVoucher>(), "financial_vouchers");
+        modelBuilder.Entity<FinancialVoucher>(entity =>
+        {
+            entity.Property(x => x.Number).HasMaxLength(80).IsRequired();
+            entity.Property(x => x.Type).HasMaxLength(40).IsRequired();
+            entity.Property(x => x.Status).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.Reference).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Narration).HasMaxLength(1000).IsRequired();
+            entity.Property(x => x.DebitAccount).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.CreditAccount).HasMaxLength(160).IsRequired();
+            entity.Property(x => x.Method).HasMaxLength(20).IsRequired();
+            entity.Property(x => x.ChequeNumber).HasMaxLength(80);
+            entity.Property(x => x.BankName).HasMaxLength(160);
+            entity.Property(x => x.Payee).HasMaxLength(160);
+            entity.Property(x => x.Amount).HasPrecision(14, 2);
+            entity.Property(x => x.VoucherDate).HasColumnType("datetime(6)");
+            entity.Property(x => x.PostedAt).HasColumnType("datetime(6)");
+            entity.Property(x => x.Revision).IsConcurrencyToken();
+            entity.HasIndex(x => x.Number).IsUnique();
+            entity.HasIndex(x => new { x.BranchId, x.VoucherDate });
+            entity.HasOne(x => x.Branch).WithMany().HasForeignKey(x => x.BranchId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.Invoice).WithMany().HasForeignKey(x => x.InvoiceId).OnDelete(DeleteBehavior.Restrict);
+            entity.HasOne(x => x.SupplierInvoice).WithMany().HasForeignKey(x => x.SupplierInvoiceId).OnDelete(DeleteBehavior.Restrict);
         });
 
         ConfigureAudited(modelBuilder.Entity<PartySector>(), "party_sectors");

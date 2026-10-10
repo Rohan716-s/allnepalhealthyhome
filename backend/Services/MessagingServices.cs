@@ -36,6 +36,7 @@ public sealed class MessageAttachmentStorage(IConfiguration configuration, IHost
         await using var input = file.OpenReadStream();
         await input.ReadExactlyAsync(bytes, cancellationToken);
         if (!HasSafeSignature(bytes, extension)) throw new InvalidDataException("The attachment content does not match its file type.");
+        if (file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) ImageContentValidation.Validate(bytes, extension);
         Directory.CreateDirectory(Root);
         var stored = $"{Guid.NewGuid():N}{extension}";
         await File.WriteAllBytesAsync(Path.Combine(Root, stored), bytes, cancellationToken);

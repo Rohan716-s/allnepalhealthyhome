@@ -11,7 +11,7 @@ public sealed record AttendanceSettingsInput(int LateCheckInGraceMinutes, int Ea
 public sealed record AttendanceCorrectionResponse(Guid Id, Guid StaffUserId, string StaffName, DateTime WorkDate, DateTime? RequestedCheckInUtc, DateTime? RequestedCheckOutUtc, string Reason, string Status, DateTime CreatedAt, string? ReviewComment);
 public sealed record AttendanceCorrectionInput(DateTime WorkDate, DateTime? RequestedCheckInUtc, DateTime? RequestedCheckOutUtc, string Reason);
 public sealed record AttendanceCorrectionDecisionInput(string Status, string? Comment);
-public sealed record LeaveRequestResponse(Guid Id, Guid StaffUserId, string StaffName, string LeaveType, DateTime StartDate, DateTime EndDate, string Reason, string Status, string? ApprovalComment, DateTime CreatedAt, string DayType = "FULL_DAY", decimal AppliedDays = 1m, string? SupportingDocumentUrl = null);
+public sealed record LeaveRequestResponse(Guid Id, Guid StaffUserId, string StaffName, string LeaveType, DateTime StartDate, DateTime EndDate, string Reason, string Status, string? ApprovalComment, DateTime CreatedAt, string DayType = "FULL_DAY", decimal AppliedDays = 1m, string? SupportingDocumentUrl = null, DateTime? UpdatedAt = null);
 public sealed record LeaveRequestInput(string LeaveType, DateTime StartDate, DateTime EndDate, string Reason, string DayType = "FULL_DAY", string? SupportingDocumentUrl = null);
 public sealed record AdminLeaveRequestInput(Guid StaffUserId, string LeaveType, DateTime StartDate, DateTime EndDate, string Reason, string DayType = "FULL_DAY", string? SupportingDocumentUrl = null);
 public sealed record LeaveDecisionInput(string Status, string? Comment);

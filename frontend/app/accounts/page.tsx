@@ -1,4 +1,7 @@
 "use client";
+import { RecordTable } from "@/components/entity-record-table";
+import { EntityListWorkspace, EntityListPanel, EntityFormPanel, entitySaveComplete, useWorkspaceSelection } from "@/components/entity-list-panel";
+import { FormSaveActions } from "@/components/form-save-actions";
 
 /* eslint-disable react-hooks/set-state-in-effect -- hydrate the protected finance workspace from the browser session. */
 import { FormEvent, useCallback, useEffect, useState } from "react";
@@ -93,7 +96,7 @@ export default function AccountsPage() {
   const [ready, setReady] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [tab, setTab] = useState<Tab>("overview");
+  const [tab, setTab] = useWorkspaceSelection<Tab>("tab", "overview");
   const [from, setFrom] = useState("");
   const [to, setTo] = useState("");
   const [invoiceStatus, setInvoiceStatus] = useState("");
@@ -257,7 +260,7 @@ export default function AccountsPage() {
       toast.success("Payment recorded and invoice balance updated.");
       setPayment((x) => ({ ...x, invoiceId: "", amount: "", reference: "" }));
       await load();
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Payment could not be recorded.",
       );
@@ -276,7 +279,7 @@ export default function AccountsPage() {
       toast.success("Expense recorded.");
       setExpense((x) => ({ ...x, description: "", amount: "", reference: "" }));
       await load();
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Expense could not be recorded.",
       );
@@ -303,7 +306,7 @@ export default function AccountsPage() {
         notes: "",
       }));
       await load();
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Supplier invoice could not be saved.",
       );
@@ -322,7 +325,7 @@ export default function AccountsPage() {
       toast.success("Bank transaction added for reconciliation.");
       setBank((x) => ({ ...x, amount: "", reference: "", notes: "" }));
       await load();
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Bank transaction could not be saved.",
       );
@@ -341,7 +344,7 @@ export default function AccountsPage() {
       });
       setTax(updated);
       toast.success("VAT settings saved.");
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "VAT settings could not be saved.",
       );
@@ -366,7 +369,7 @@ export default function AccountsPage() {
         notes: "",
       }));
       await load();
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Journal entry could not be posted.",
       );
@@ -375,11 +378,11 @@ export default function AccountsPage() {
     }
   }
   if (!ready || !user || !["ACCOUNTANT", "SUPERADMIN"].includes(user.role))
-    return (
+    return <EntityListWorkspace title="Accounts">
       <main className="grid min-h-screen place-items-center bg-slate-100 text-sm text-slate-500">
         Loading finance workspace…
       </main>
-    );
+    </EntityListWorkspace>;
   const filteredInvoices = invoices.filter(
     (row) =>
       (!invoiceStatus || row.paymentStatus === invoiceStatus) &&
@@ -399,7 +402,7 @@ export default function AccountsPage() {
     ["bank", "Statement entries", Landmark],
     ["reports", "Reports & VAT", FileBarChart],
   ];
-  return (
+  return <EntityListWorkspace title="Accounts">
     <main className="min-h-screen bg-slate-100 px-4 py-6 sm:px-8">
       <div className="mx-auto max-w-[1500px]">
         <header className="flex flex-wrap items-center justify-between gap-4">
@@ -433,8 +436,7 @@ export default function AccountsPage() {
               accountTypeLabel={user.role}
               links={[
                 { label: "My Account", href: "/accounts" },
-                { label: "My Orders", href: "/admin/orders" },
-                { label: "Wishlist", href: "/wishlist" },
+                { label: "Manage orders", href: user.role === "SUPERADMIN" ? "/superadmin/orders" : "/admin/orders" },
               ]}
             />
           </div>
@@ -548,7 +550,7 @@ export default function AccountsPage() {
                 await matchReconciliation(staffToken(), id);
                 toast.success("Transaction marked as matched.");
                 await load();
-              } catch (e) {
+               entitySaveComplete(); } catch (e) {
                 toast.error(
                   e instanceof Error
                     ? e.message
@@ -571,7 +573,7 @@ export default function AccountsPage() {
         )}
       </div>
     </main>
-  );
+  </EntityListWorkspace>;
 }
 
 function AccountingPanel({
@@ -620,7 +622,7 @@ function AccountingPanel({
   ];
   const balances = summary?.trialBalance ?? [];
   return (
-    <div className="mt-6 grid gap-6 lg:grid-cols-[250px_1fr]">
+    <div className="mt-6 grid gap-6 ">
       <Card className="h-fit">
         <CardHeader>
           <CardTitle>Accounting</CardTitle>
@@ -767,9 +769,9 @@ function JournalView({
   money: (value: number) => string;
 }) {
   return (
-    <div className="grid gap-6 xl:grid-cols-[1fr_350px]">
-      <JournalTable title="Journal" rows={rows} money={money} />
-      <Card>
+    <div className="grid gap-6 ">
+      <EntityListPanel><JournalTable title="Journal" rows={rows} money={money} /></EntityListPanel>
+      <EntityFormPanel><Card>
         <CardHeader>
           <CardTitle>Post journal entry</CardTitle>
         </CardHeader>
@@ -838,12 +840,10 @@ function JournalView({
                 onChange={(e) => setForm({ ...form, amount: e.target.value })}
               />
             </Label>
-            <Button type="submit" disabled={busy}>
-              <Plus size={16} /> Post entry
-            </Button>
+            <FormSaveActions mode="create" busy={busy} onCancel={() => {}} />
           </form>
         </CardContent>
-      </Card>
+      </Card></EntityFormPanel>
     </div>
   );
 }
@@ -866,7 +866,7 @@ function JournalTable({
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[720px] text-left text-sm">
+          <RecordTable className="w-full min-w-[720px] text-left text-sm">
             <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-3">Date</th>
@@ -896,7 +896,7 @@ function JournalTable({
                 </tr>
               )}
             </tbody>
-          </table>
+          </RecordTable>
         </div>
       </CardContent>
     </Card>
@@ -919,7 +919,7 @@ function AccountingTable({
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[650px] text-left text-sm">
+          <RecordTable className="w-full min-w-[650px] text-left text-sm">
             <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-3">Account</th>
@@ -950,7 +950,7 @@ function AccountingTable({
                 </tr>
               )}
             </tbody>
-          </table>
+          </RecordTable>
         </div>
       </CardContent>
     </Card>
@@ -1112,7 +1112,7 @@ function Overview({
           </Card>
         ))}
       </div>
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.2fr_.8fr]">
+      <div className="mt-6 grid gap-6 ">
         <Card>
           <CardHeader>
             <CardTitle>Top retailers by revenue</CardTitle>
@@ -1209,8 +1209,8 @@ function Invoices({
   money: (value: number) => string;
 }) {
   return (
-    <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_350px]">
-      <Card>
+    <div className="mt-6 grid gap-6 ">
+      <EntityListPanel addLabel="Add entry"><Card>
         <CardHeader>
           <div className="flex flex-wrap items-center justify-between gap-3">
             <CardTitle>Sales invoices</CardTitle>
@@ -1239,7 +1239,7 @@ function Invoices({
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[760px] text-left text-sm">
+            <RecordTable className="w-full min-w-[760px] text-left text-sm">
               <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-3 py-3">Invoice</th>
@@ -1285,12 +1285,12 @@ function Invoices({
                   </tr>
                 )}
               </tbody>
-            </table>
+            </RecordTable>
           </div>
         </CardContent>
-      </Card>
+      </Card></EntityListPanel>
       <div className="grid gap-6">
-        <Card>
+        <EntityFormPanel><Card>
           <CardHeader>
             <CardTitle>Record payment</CardTitle>
           </CardHeader>
@@ -1359,13 +1359,11 @@ function Invoices({
                   placeholder="Receipt, cheque, or bank reference"
                 />
               </Label>
-              <Button type="submit" disabled={busy}>
-                <Banknote size={16} /> Record payment
-              </Button>
+              <FormSaveActions mode="create" busy={busy} onCancel={() => {}} />
             </form>
           </CardContent>
-        </Card>
-        <Card>
+        </Card></EntityFormPanel>
+        <EntityListPanel addLabel="Add entry"><Card>
           <CardHeader>
             <CardTitle>Recent payments</CardTitle>
           </CardHeader>
@@ -1387,7 +1385,7 @@ function Invoices({
               </p>
             )}
           </CardContent>
-        </Card>
+        </Card></EntityListPanel>
       </div>
     </div>
   );
@@ -1407,7 +1405,7 @@ function Ledger({
       </CardHeader>
       <CardContent>
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[760px] text-left text-sm">
+          <RecordTable className="w-full min-w-[760px] text-left text-sm">
             <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
               <tr>
                 <th className="px-3 py-3">Retailer</th>
@@ -1453,7 +1451,7 @@ function Ledger({
                 </tr>
               )}
             </tbody>
-          </table>
+          </RecordTable>
         </div>
       </CardContent>
     </Card>
@@ -1494,14 +1492,14 @@ function Payables({
   busy: boolean;
 }) {
   return (
-    <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
-      <Card>
+    <div className="mt-6 grid gap-6 ">
+      <EntityListPanel addLabel="Add entry"><Card>
         <CardHeader>
           <CardTitle>Supplier invoices & payables</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[700px] text-left text-sm">
+            <RecordTable className="w-full min-w-[700px] text-left text-sm">
               <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-3 py-3">Supplier invoice</th>
@@ -1540,11 +1538,11 @@ function Payables({
                   </tr>
                 )}
               </tbody>
-            </table>
+            </RecordTable>
           </div>
         </CardContent>
-      </Card>
-      <Card>
+      </Card></EntityListPanel>
+      <EntityFormPanel><Card>
         <CardHeader>
           <CardTitle>Add supplier invoice</CardTitle>
         </CardHeader>
@@ -1624,12 +1622,10 @@ function Payables({
                 />
               </Label>
             </div>
-            <Button type="submit" disabled={busy}>
-              <Plus size={16} /> Save supplier invoice
-            </Button>
+            <FormSaveActions mode="create" busy={busy} onCancel={() => {}} />
           </form>
         </CardContent>
-      </Card>
+      </Card></EntityFormPanel>
     </div>
   );
 }
@@ -1664,14 +1660,14 @@ function Expenses({
   busy: boolean;
 }) {
   return (
-    <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
-      <Card>
+    <div className="mt-6 grid gap-6 ">
+      <EntityListPanel addLabel="Add entry"><Card>
         <CardHeader>
           <CardTitle>Business expenses</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[650px] text-left text-sm">
+            <RecordTable className="w-full min-w-[650px] text-left text-sm">
               <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-3 py-3">Date</th>
@@ -1704,11 +1700,11 @@ function Expenses({
                   </tr>
                 )}
               </tbody>
-            </table>
+            </RecordTable>
           </div>
         </CardContent>
-      </Card>
-      <Card>
+      </Card></EntityListPanel>
+      <EntityFormPanel><Card>
         <CardHeader>
           <CardTitle>Record an expense</CardTitle>
         </CardHeader>
@@ -1772,12 +1768,10 @@ function Expenses({
                 <option>CHEQUE</option>
               </Select>
             </Label>
-            <Button type="submit" disabled={busy}>
-              <Plus size={16} /> Record expense
-            </Button>
+            <FormSaveActions mode="create" busy={busy} onCancel={() => {}} />
           </form>
         </CardContent>
-      </Card>
+      </Card></EntityFormPanel>
     </div>
   );
 }
@@ -1814,14 +1808,14 @@ function Bank({
   onMatch: (id: string) => void;
 }) {
   return (
-    <div className="mt-6 grid gap-6 xl:grid-cols-[1fr_360px]">
-      <Card>
+    <div className="mt-6 grid gap-6 ">
+      <EntityListPanel addLabel="Add entry"><Card>
         <CardHeader>
           <CardTitle>Bank statement reconciliation</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="overflow-x-auto">
-            <table className="w-full min-w-[720px] text-left text-sm">
+            <RecordTable className="w-full min-w-[720px] text-left text-sm">
               <thead className="border-b border-slate-100 text-xs uppercase tracking-wide text-slate-500">
                 <tr>
                   <th className="px-3 py-3">Date</th>
@@ -1870,11 +1864,11 @@ function Bank({
                   </tr>
                 )}
               </tbody>
-            </table>
+            </RecordTable>
           </div>
         </CardContent>
-      </Card>
-      <Card>
+      </Card></EntityListPanel>
+      <EntityFormPanel><Card>
         <CardHeader>
           <CardTitle>Add statement line</CardTitle>
         </CardHeader>
@@ -1935,12 +1929,10 @@ function Bank({
                 }
               />
             </Label>
-            <Button type="submit" disabled={busy}>
-              <Plus size={16} /> Add transaction
-            </Button>
+            <FormSaveActions mode="create" busy={busy} onCancel={() => {}} />
           </form>
         </CardContent>
-      </Card>
+      </Card></EntityFormPanel>
     </div>
   );
 }
@@ -1979,7 +1971,7 @@ function Reports({
     try {
       await downloadAccountantReport(staffToken(), type, from, to);
       toast.success("Excel-compatible report downloaded.");
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Report could not be generated.",
       );
@@ -1988,7 +1980,7 @@ function Reports({
     }
   }
   return (
-    <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_360px]">
+    <div className="mt-6 grid gap-6 ">
       <Card>
         <CardHeader>
           <CardTitle>Financial reports</CardTitle>

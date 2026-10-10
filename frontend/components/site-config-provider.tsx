@@ -3,10 +3,10 @@
 /* eslint-disable react-hooks/set-state-in-effect -- hydrate the persisted storefront preference after client mount. */
 
 import { createContext, useContext, useEffect, useMemo, useState } from "react";
+import dynamic from "next/dynamic";
 import { usePathname, useRouter } from "next/navigation";
 import { Wrench } from "lucide-react";
 import { GlobalTablePagination } from "@/components/global-table-pagination";
-import { FloatingContactWidget } from "@/components/floating-contact-widget";
 import { getPublicSiteConfig, PublicSiteConfig } from "@/services/api";
 import { translate, type Locale, type Translate } from "@/lib/i18n";
 import { configurePlatformTimePreferences } from "@/lib/platform-time-preferences";
@@ -22,6 +22,12 @@ import {
   type MarqueeSettings,
   type SiteDesignSettings,
 } from "@/lib/site-design";
+import { getAuthenticatedStaffRole, isStaffWorkspacePath } from "@/lib/staff-routing";
+
+const FloatingContactWidget = dynamic(
+  () => import("@/components/floating-contact-widget").then((module) => module.FloatingContactWidget),
+  { ssr: false },
+);
 
 const defaults: PublicSiteConfig = {
   settings: {
@@ -79,6 +85,8 @@ type SiteConfigValue = PublicSiteConfig & {
   colorMode: "light" | "dark";
   toggleColorMode: () => void;
   designPreview: boolean;
+  authenticatedStaffRole: string | null;
+  roleResolved: boolean;
 };
 const SiteConfigContext = createContext<SiteConfigValue>({
   ...defaults,
@@ -94,6 +102,8 @@ const SiteConfigContext = createContext<SiteConfigValue>({
   colorMode: "light",
   toggleColorMode: () => undefined,
   designPreview: false,
+  authenticatedStaffRole: null,
+  roleResolved: false,
 });
 
 export function SiteConfigProvider({
@@ -106,8 +116,23 @@ export function SiteConfigProvider({
   const [locale, setLocaleState] = useState<Locale>("en");
   const [colorMode, setColorMode] = useState<"light" | "dark">("light");
   const [designPreview, setDesignPreview] = useState(false);
+  const [authenticatedStaffRole, setAuthenticatedStaffRole] = useState<string | null>(null);
+  const [roleResolved, setRoleResolved] = useState(false);
   const pathname = usePathname() ?? "/";
   const router = useRouter();
+  useEffect(() => {
+    const syncStaffRole = () => {
+      setAuthenticatedStaffRole(getAuthenticatedStaffRole());
+      setRoleResolved(true);
+    };
+    syncStaffRole();
+    window.addEventListener("anhh-auth-changed", syncStaffRole);
+    window.addEventListener("storage", syncStaffRole);
+    return () => {
+      window.removeEventListener("anhh-auth-changed", syncStaffRole);
+      window.removeEventListener("storage", syncStaffRole);
+    };
+  }, [pathname]);
   useEffect(() => {
     const saved = window.localStorage.getItem("anhh-locale");
     if (saved !== "en" && saved !== "ne" && saved !== "hi") return;
@@ -197,10 +222,7 @@ export function SiteConfigProvider({
     window.addEventListener("anhh:table-page-size-changed", onTablePageSizeChanged);
     return () => window.removeEventListener("anhh:table-page-size-changed", onTablePageSizeChanged);
   }, []);
-  const staffRoute =
-    /^(\/admin|\/superadmin|\/staff|\/pharmacist|\/delivery)(\/|$)/.test(
-      pathname,
-    );
+  const staffRoute = isStaffWorkspacePath(pathname) || Boolean(authenticatedStaffRole);
   const design = useMemo(
     () => parseSiteDesign(config.settings["website.design"]),
     [config.settings],
@@ -234,7 +256,7 @@ export function SiteConfigProvider({
   const quietOverlayRoute = pathname === "/messages" || pathname === "/register";
   configurePlatformTimePreferences(timeZone, timeFormat);
   return (
-      <SiteConfigContext.Provider value={{ ...config, design, marquee, configLoaded, locale, setLocale, t, dateFormat, timeFormat, timeZone, colorMode, toggleColorMode, designPreview }}>
+      <SiteConfigContext.Provider value={{ ...config, design, marquee, configLoaded, locale, setLocale, t, dateFormat, timeFormat, timeZone, colorMode, toggleColorMode, designPreview, authenticatedStaffRole, roleResolved }}>
       <div
         style={themeStyle(design)}
         className={`site-theme-root ${staffRoute ? "workspace-theme" : "storefront-blue-theme"} locale-${locale} site-hover-${design.hoverStyle.toLowerCase()} ${design.animationsEnabled === false ? "motion-off" : ""} ${colorMode === "dark" ? "site-color-dark" : ""}`}
@@ -286,7 +308,7 @@ export function SiteConfigProvider({
                 {children}
               </div>
             ) : children}
-            {!staffRoute && !quietOverlayRoute && <FloatingContactWidget settings={contactWidget} />}
+            {roleResolved && !authenticatedStaffRole && !staffRoute && !quietOverlayRoute && <FloatingContactWidget settings={contactWidget} />}
             <GlobalTablePagination />
           </>
         )}

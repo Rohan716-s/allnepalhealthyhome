@@ -40,8 +40,18 @@ if (string.IsNullOrWhiteSpace(connectionString))
 }
 var serverVersion = ServerVersion.Parse(builder.Configuration["Database:ServerVersion"] ?? "8.0.36-mysql");
 
-builder.Services.AddDbContext<ApplicationDbContext>(options =>
-    options.UseMySql(connectionString, serverVersion, mySql => mySql.EnableRetryOnFailure()));
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddDbContext<ApplicationDbContext>((services, options) =>
+    options.UseMySql(connectionString, serverVersion, mySql =>
+    {
+        // Earlier middleware may resolve this scoped context before sync adds
+        // its transaction marker. Decide from the request before options freeze.
+        var request = services.GetRequiredService<IHttpContextAccessor>().HttpContext?.Request;
+        var offlineReplay = request is not null && request.Headers.ContainsKey("X-Offline-Operation")
+            && OfflineSyncPolicy.Supports(request.Method, request.Path.Value ?? "");
+        if (!offlineReplay)
+            mySql.EnableRetryOnFailure();
+    }));
 builder.Services.Configure<ImageUploadOptions>(builder.Configuration.GetSection("ImageUpload"));
 builder.Services.Configure<HeroVideoUploadOptions>(builder.Configuration.GetSection("HeroVideoUpload"));
 
@@ -124,6 +134,9 @@ using (var timeScope = app.Services.CreateScope())
 
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 app.UseMiddleware<CustomerAuthenticationMiddleware>();
+app.UseMiddleware<CommerceAuthorizationMiddleware>();
+app.UseCors("LocalFrontend");
+app.UseMiddleware<OfflineSyncMiddleware>();
 
 if (app.Environment.IsDevelopment())
 {
@@ -131,7 +144,6 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors("LocalFrontend");
 app.UseRateLimiter();
 app.UseAuthorization();
 app.MapControllers();

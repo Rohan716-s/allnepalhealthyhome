@@ -425,7 +425,9 @@ public sealed class HrmsController(ApplicationDbContext db) : ControllerBase
         var staff = await query.OrderBy(x => x.FullName).ToListAsync(ct);
         if (staffUserId.HasValue && !staff.Any()) return NotFound(new { message = "The selected employee could not be found." });
         if (!staff.Any()) return Ok(Array.Empty<LeaveBalanceResponse>());
-        var staffIds = staff.Select(x => x.Id).ToArray();
+        // List.Contains avoids the array-to-ReadOnlySpan overload selected by
+        // newer compilers, which EF cannot evaluate in a query expression.
+        var staffIds = staff.Select(x => x.Id).ToList();
         var start = new DateTime(year, 1, 1);
         var end = start.AddYears(1).AddDays(-1);
         var allocations = await db.LeaveAllocations.AsNoTracking().Where(x => staffIds.Contains(x.StaffUserId) && x.LeaveYear == year).ToListAsync(ct);
@@ -972,7 +974,7 @@ public sealed class HrmsController(ApplicationDbContext db) : ControllerBase
     private static AttendanceRecordResponse Row(AttendanceRecord x) => new(x.Id, x.StaffUserId, x.StaffUser?.FullName ?? "", x.WorkDate, x.CheckInUtc, x.CheckOutUtc, x.Status, x.TotalMinutes, x.OvertimeMinutes, x.IsFinalized, x.LateMinutes, x.ShiftId, x.Shift?.Name, x.CheckInLocationStatus, x.CheckOutLocationStatus, x.CheckInLatitude, x.CheckInLongitude, x.CheckInAccuracy, x.CheckOutLatitude, x.CheckOutLongitude, x.CheckOutAccuracy);
     private static HrmsSetupItemResponse SetupRow(HrmsSetupItem x) => new(x.Id, x.Category, x.Name, x.Code, x.Description, x.DisplayOrder, x.IsActive, x.UpdatedAt);
     private static OfficeOperationRecordResponse OfficeRow(OfficeOperationRecord x) => new(x.Id, x.Category, x.Title, x.Details, x.Status, x.StaffUserId, x.StaffUser?.FullName, x.StartsAt, x.EndsAt, x.Location, x.Audience, x.ReferenceNumber, x.AttachmentUrl, x.CreatedAt, x.UpdatedAt);
-    private static LeaveRequestResponse LeaveRow(LeaveRequest x) => new(x.Id, x.StaffUserId, x.StaffUser?.FullName ?? "", x.LeaveType, x.StartDate, x.EndDate, x.Reason, x.Status, x.ApprovalComment, x.CreatedAt, x.DayType, x.AppliedDays, x.SupportingDocumentUrl);
+    private static LeaveRequestResponse LeaveRow(LeaveRequest x) => new(x.Id, x.StaffUserId, x.StaffUser?.FullName ?? "", x.LeaveType, x.StartDate, x.EndDate, x.Reason, x.Status, x.ApprovalComment, x.CreatedAt, x.DayType, x.AppliedDays, x.SupportingDocumentUrl, x.UpdatedAt);
     private static LeaveAllocationResponse LeaveAllocationRow(LeaveAllocation x) => new(x.Id, x.StaffUserId, x.StaffUser?.FullName ?? "", x.LeaveType, x.LeaveYear, x.AllocatedDays, x.CarryForwardDays, x.AdjustmentDays, x.Notes, x.UpdatedAt);
     private static OvertimeRecordResponse OvertimeRow(OvertimeRecord x) => new(x.Id, x.StaffUserId, x.StaffUser?.FullName ?? "", x.WorkDate, x.StartTime, x.EndTime, x.TotalMinutes, x.OvertimeType, x.Status, x.Remarks, x.DecisionComment, x.CreatedAt);
     private static EmploymentMovementResponse EmploymentMovementRow(EmploymentMovement x) => new(x.Id, x.StaffUserId, x.StaffUser?.FullName ?? "", x.MovementType, x.EffectiveDate, x.PreviousBranchId, x.PreviousBranch?.Name, x.NewBranchId, x.NewBranch?.Name, x.PreviousShiftId, x.PreviousShift?.Name, x.NewShiftId, x.NewShift?.Name, x.PreviousDepartment, x.NewDepartment, x.PreviousJobTitle, x.NewJobTitle, x.Reason, x.Status, x.DecisionComment, x.CreatedAt);

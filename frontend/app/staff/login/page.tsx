@@ -21,10 +21,11 @@ export default function StaffLoginPage() {
       const response = await loginStaff(credentials);
       window.localStorage.setItem("anhh-staff-access-token", response.accessToken);
       window.localStorage.setItem("anhh-staff", JSON.stringify(response.staff));
+      window.dispatchEvent(new Event("anhh-auth-changed"));
       toast.success(signedInToast);
       const role = response.staff.role;
       const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-      router.push(canReturnToStaffPath(returnTo, role) ? returnTo! : staffDefaultPath(role));
+      router.replace(canReturnToStaffPath(returnTo, role) ? returnTo! : staffDefaultPath(role));
     } catch (err) {
       setError(err instanceof ApiError ? err.message : "We could not sign you in.");
     } finally {

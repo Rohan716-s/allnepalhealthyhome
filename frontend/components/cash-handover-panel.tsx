@@ -1,4 +1,7 @@
 "use client";
+import { RecordTable } from "@/components/entity-record-table";
+import { FormSaveActions } from "@/components/form-save-actions";
+import { EntityListWorkspace, EntityListPanel, ListButton, EntityFormPanel , entitySaveComplete } from "@/components/entity-list-panel";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ArrowLeftRight, FileDown, Printer, RefreshCw, X } from "lucide-react";
@@ -73,7 +76,7 @@ export function CashHandoverPanel({ title, token, superAdmin, branchId, branches
       try {
         await createCashHandover(token, { branchId: effectiveBranchId, receivedByStaffUserId: receiverId, ...(superAdmin ? { handedByStaffUserId: senderId } : {}), amount: Number(amount), reference: reference.trim(), notes: notes.trim() || undefined }, superAdmin);
         toast.success("Cash handover recorded and posted to the ledger."); setAmount(""); setReference(""); setNotes(""); await load();
-      } catch (cause) { toast.error(cause instanceof Error ? cause.message : "Cash handover could not be saved."); }
+       entitySaveComplete(); } catch (cause) { toast.error(cause instanceof Error ? cause.message : "Cash handover could not be saved."); }
       finally { setSaving(false); }
     } });
   }
@@ -87,7 +90,7 @@ export function CashHandoverPanel({ title, token, superAdmin, branchId, branches
     window.setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
-  return <Card className="border-[#003893]/25">
+  return <EntityListWorkspace title="Cash Handover Panel">{<EntityFormPanel formKey="0"><Card className="border-[#003893]/25">
     <CardHeader><CardTitle className="flex flex-wrap items-center gap-3"><span className="grid size-10 place-items-center rounded-xl bg-blue-50 text-[#003893]"><ArrowLeftRight size={18} /></span><span className="min-w-0 flex-1">{title}</span><Button variant="outline" onClick={exportCsv}><FileDown size={15} /> Export CSV</Button><Button variant="outline" onClick={() => window.print()}><Printer size={15} /> Print</Button><Button variant="outline" onClick={() => void load()} disabled={loading}><RefreshCw size={15} className={loading ? "animate-spin" : ""} /> Refresh</Button><Button variant="ghost" size="icon" onClick={onClose} aria-label="Close cash handover"><X size={17} /></Button></CardTitle></CardHeader>
     <CardContent className="space-y-5">
       {error && <p role="alert" className="rounded-xl bg-rose-50 p-3 text-sm text-rose-700">{error}</p>}
@@ -98,10 +101,10 @@ export function CashHandoverPanel({ title, token, superAdmin, branchId, branches
         <label className="block space-y-1 text-xs font-bold text-slate-600">Amount (NPR)<Input type="number" min="0.01" step="0.01" value={amount} onChange={(event) => setAmount(event.target.value)} required /></label>
         <label className="block space-y-1 text-xs font-bold text-slate-600 xl:col-span-2">Reference<Input value={reference} onChange={(event) => setReference(event.target.value)} maxLength={120} placeholder="Cash count / shift / voucher reference" required /></label>
         <label className="block space-y-1 text-xs font-bold text-slate-600 xl:col-span-4">Notes<Input value={notes} onChange={(event) => setNotes(event.target.value)} maxLength={1000} placeholder="Optional handover notes" /></label>
-        <div className="flex items-end"><Button type="submit" disabled={saving || staff.length < 2 || !effectiveBranchId}>{saving ? "Recording…" : "Record handover"}</Button></div>
+        <div className="flex items-end"><FormSaveActions mode={"create"} busy={saving} onCancel={() => {}} /></div>
         <p className="text-xs text-slate-500 md:col-span-2 xl:col-span-6">Handover records are retained for audit and post a balanced journal: Debit Cash at Teller / Credit Cash. Posted entries are not deleted from the ledger.</p>
-      </form>
-      <div className="overflow-x-auto rounded-xl border"><table className="w-full min-w-[820px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs uppercase text-slate-500"><th className="p-3">Date / time</th><th className="p-3">Handover no.</th><th className="p-3">Branch</th><th className="p-3">Cashier</th><th className="p-3">Teller</th><th className="p-3">Reference</th><th className="p-3 text-right">Amount</th><th className="p-3">Status</th></tr></thead><tbody>{records.map((row) => <tr key={row.id} className="border-b last:border-0"><td className="p-3">{formatPlatformDateTime(row.handoverAt)}</td><td className="p-3 font-mono">{row.handoverNumber}</td><td className="p-3">{row.branch || "—"}</td><td className="p-3">{row.handedBy}</td><td className="p-3">{row.receivedBy}</td><td className="p-3">{row.reference}{row.notes && <span className="block text-xs text-slate-500">{row.notes}</span>}</td><td className="p-3 text-right font-bold">{money(row.amount)}</td><td className="p-3">{row.status}</td></tr>)}{!records.length && <tr><td colSpan={8} className="p-8 text-center text-slate-500">{loading ? "Loading handover records…" : "No recorded handovers in this date and branch range."}</td></tr>}</tbody></table></div>
+      <div className="flex flex-wrap gap-2 sm:col-span-2"></div></form>
+      <EntityListPanel formKey="0"><div className="overflow-x-auto rounded-xl border"><RecordTable className="w-full min-w-[820px] text-left text-sm"><thead><tr className="border-b bg-slate-50 text-xs uppercase text-slate-500"><th className="p-3">Date / time</th><th className="p-3">Handover no.</th><th className="p-3">Branch</th><th className="p-3">Cashier</th><th className="p-3">Teller</th><th className="p-3">Reference</th><th className="p-3 text-right">Amount</th><th className="p-3">Status</th></tr></thead><tbody>{records.map((row) => <tr key={row.id} className="border-b last:border-0"><td className="p-3">{formatPlatformDateTime(row.handoverAt)}</td><td className="p-3 font-mono">{row.handoverNumber}</td><td className="p-3">{row.branch || "—"}</td><td className="p-3">{row.handedBy}</td><td className="p-3">{row.receivedBy}</td><td className="p-3">{row.reference}{row.notes && <span className="block text-xs text-slate-500">{row.notes}</span>}</td><td className="p-3 text-right font-bold">{money(row.amount)}</td><td className="p-3">{row.status}</td></tr>)}{!records.length && <tr><td colSpan={8} className="p-8 text-center text-slate-500">{loading ? "Loading handover records…" : "No recorded handovers in this date and branch range."}</td></tr>}</tbody></RecordTable></div></EntityListPanel>
     </CardContent>
-  </Card>;
+  </Card></EntityFormPanel>}</EntityListWorkspace>;
 }

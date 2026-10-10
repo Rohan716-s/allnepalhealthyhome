@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ChevronRight, ChevronDown } from "lucide-react";
 
 export type PharmacyMenuAction = {
-  section: "sales" | "purchases" | "inventory" | "credit" | "catalogue";
+  section: "sales" | "purchases" | "inventory" | "credit" | "catalogue" | "account" | "journal";
   mode: string;
   title: string;
   displayTitle?: string;
@@ -26,6 +26,7 @@ const report = (section: PharmacyMenuAction["section"], title: string): Node => 
 const salesAction = (label: string, mode: string): Node => ({ label, action: { section: "sales", mode, title: label } });
 const purchaseAction = (label: string, mode: string): Node => ({ label, action: { section: "purchases", mode, title: label } });
 const inventoryAction = (label: string, mode: string): Node => ({ label, action: { section: "inventory", mode, title: label } });
+const financeAction = (section: "account" | "journal", label: string, mode: string): Node => ({ label, action: { section, mode, title: label } });
 const accountReport = (label: string): Node => report("credit", label);
 const catalogueAction = (label: string, mode: string): Node => ({ label, action: { section: "catalogue", mode, title: label } });
 
@@ -68,6 +69,43 @@ const menus: TopMenu[] = [
       inventoryAction("Stock Adjustment Cancel", "adjustment-cancel"), purchaseAction("Print MRN", "purchase-mrn-report"),
       purchaseAction("Purchase Return Slip", "purchase-return-slip"), inventoryAction("Stock Adjustment Slip", "adjustment-slip"),
       report("purchases", "Purchase / Adjustment Register"), report("purchases", "Change in Supplier"),
+    ],
+  },
+  {
+    label: "Account-Department",
+    items: [
+      { label: "Debtor Account", children: [financeAction("account", "Debtor Ledger", "debtor-ledger"), financeAction("account", "Debtor Invoice Register", "debtor-invoices")] },
+      financeAction("account", "Cash Receipt Edit", "cash-receipt-edit"),
+      financeAction("account", "Draft Receipt Edit", "draft-receipt-edit"),
+      financeAction("account", "Credit Note Edit", "credit-note-edit"),
+      financeAction("account", "Debit Note Edit", "debit-note-edit"),
+      financeAction("account", "Cash Receipt Print", "cash-receipt-print"),
+      financeAction("account", "Draft Receipt Print", "draft-receipt-print"),
+      financeAction("account", "Credit Note Print", "credit-note-print"),
+      financeAction("account", "Debit Note Print", "debit-note-print"),
+      financeAction("account", "Collection/Adjustment Register", "collection-register"),
+      financeAction("account", "Cash Collection", "cash-collection"),
+    ],
+  },
+  {
+    label: "Journal Voucher Section",
+    items: [
+      financeAction("journal", "Journal Voucher Entry", "journal-entry"),
+      financeAction("journal", "Expense/ Purchase Voucher Entry", "expense-entry"),
+      financeAction("journal", "Cheque Print", "cheque-print"),
+      financeAction("journal", "Payment Voucher", "payment-entry"),
+      financeAction("journal", "Receipt Voucher", "receipt-entry"),
+      financeAction("journal", "Narration Edit", "narration"),
+      financeAction("journal", "Post To Ledger", "post"),
+      financeAction("journal", "UnPost To Edit", "unpost"),
+      financeAction("journal", "Voucher Edit", "voucher-edit"),
+      financeAction("journal", "Voucher Print", "voucher-print"),
+      financeAction("journal", "Show Auto-Vouchers", "auto-vouchers"),
+      financeAction("journal", "Journal Book", "journal-book"),
+      financeAction("journal", "Supplier A/C Credit Entry", "supplier-credit"),
+      financeAction("journal", "Supplier Debit Note", "supplier-debit"),
+      financeAction("journal", "Supplier Debit Note Book", "supplier-debit-book"),
+      financeAction("journal", "Supplier In-Complete Reconciliation Book", "supplier-reconciliation-book"),
     ],
   },
   {
@@ -117,6 +155,8 @@ const menus: TopMenu[] = [
 ];
 
 /** Default Medi Pro-style sibling order for the top bar and every nested menu. */
+export const PHARMACY_WORKSPACE_ACTIONS: PharmacyMenuAction[] = (() => { const result: PharmacyMenuAction[] = []; const collect = (nodes: Node[]) => nodes.forEach(node => { if (node.action) result.push(node.action); if (node.children) collect(node.children); }); menus.forEach(menu => collect(menu.items || [])); return result; })();
+
 export const PHARMACY_WORKSPACE_MENU_GROUPS: Record<string, string[]> = (() => {
   const groups: Record<string, string[]> = { TOP: menus.filter((menu) => !menu.exit).map((menu) => menu.label) };
   const collect = (nodes: Node[], path: string) => {
@@ -139,7 +179,12 @@ export function parsePharmacyWorkspaceMenuOrder(value?: string): PharmacyWorkspa
       const allowed = new Set(defaults);
       const candidates = Array.isArray(supplied[group]) ? supplied[group].filter((label): label is string => typeof label === "string" && allowed.has(label)) : [];
       const unique = [...new Set(candidates)];
-      return [group, [...unique, ...defaults.filter((label) => !unique.includes(label))]];
+      for (const label of defaults) {
+        if (unique.includes(label)) continue;
+        const previous = defaults.slice(0, defaults.indexOf(label)).reverse().find(candidate => unique.includes(candidate));
+        unique.splice(previous ? unique.indexOf(previous) + 1 : 0, 0, label);
+      }
+      return [group, unique];
     }));
   } catch {
     return PHARMACY_WORKSPACE_MENU_GROUPS;
@@ -200,20 +245,26 @@ function MenuNode({ node, groupPath, menuOrder, onAction, onNavigate, labelFor }
       <span>{labelFor(node.label)}</span><ChevronRight size={14} className="shrink-0" />
     </button>
     {submenuOpen && <div role="menu" aria-label={labelFor(node.label)} style={{ left: submenuPosition?.left ?? 8, top: submenuPosition?.top ?? 64 }} className="fixed z-[120] max-h-[72vh] min-w-52 overflow-y-auto border border-[#aaa] bg-[#f5f4f1] p-1 text-[#444] shadow-lg max-md:static max-md:ml-3 max-md:border-y-0 max-md:border-r-0 max-md:shadow-none">
-      {orderedPharmacyMenuLabels(`${groupPath}/${node.label}`, menuOrder).map((label) => node.children!.find((child) => child.label === label)!).map((child) => <MenuNode key={child.label} node={child} groupPath={`${groupPath}/${node.label}`} menuOrder={menuOrder} onAction={onAction} onNavigate={onNavigate} labelFor={labelFor} />)}
+      {orderedPharmacyMenuLabels(`${groupPath}/${node.label}`, menuOrder).map((label) => node.children!.find((child) => child.label === label)!).filter(Boolean).map((child) => <MenuNode key={child.label} node={child} groupPath={`${groupPath}/${node.label}`} menuOrder={menuOrder} onAction={onAction} onNavigate={onNavigate} labelFor={labelFor} />)}
     </div>}
   </div>;
   return <button type="button" className="block w-full rounded-none px-2 py-1 text-left text-xs font-normal hover:bg-[#dce8f8] hover:text-[#003893] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003893]" onClick={() => node.action ? onAction({ ...node.action, displayTitle: labelFor(node.action.title) }) : node.href && onNavigate(node.href)}>{labelFor(node.label)}</button>;
 }
 
-export function PharmacyModuleMenu({ onAction, onExit, superAdmin = false, allowPurchase = true, allowInventory = true, allowLedger = true, allowCatalog = true, department, menuOrder, labelFor = (label) => label }: { onAction: (action: PharmacyMenuAction) => void; onExit: () => void; superAdmin?: boolean; allowPurchase?: boolean; allowInventory?: boolean; allowLedger?: boolean; allowCatalog?: boolean; department?: "sales" | "purchase" | "home"; menuOrder?: string; labelFor?: (label: string) => string }) {
+export function PharmacyModuleMenu({ onAction, onExit, superAdmin = false, allowSales = true, allowPurchase = true, canAction = () => true, allowInventory = true, allowLedger = true, allowCatalog = true, department, menuOrder, labelFor = (label) => label }: { onAction: (action: PharmacyMenuAction) => void; onExit: () => void; superAdmin?: boolean; allowSales?: boolean; allowPurchase?: boolean; canAction?: (action: PharmacyMenuAction) => boolean; allowInventory?: boolean; allowLedger?: boolean; allowCatalog?: boolean; department?: "sales" | "purchase" | "home"; menuOrder?: string; labelFor?: (label: string) => string }) {
   const router = useRouter();
   const [open, setOpen] = useState<string | null>(null);
   const [openPosition, setOpenPosition] = useState<{ left: number; top: number } | null>(null);
   const configuredOrder = parsePharmacyWorkspaceMenuOrder(menuOrder);
-  const orderedMenus = orderedPharmacyMenuLabels("TOP", configuredOrder).map((label) => menus.find((menu) => menu.label === label)!).filter(Boolean);
+  const filterNodes = (nodes: Node[]): Node[] => nodes.flatMap(node => {
+    if (node.children) { const children = filterNodes(node.children); return children.length ? [{ ...node, children }] : []; }
+    if (node.action && !canAction(node.action)) return [];
+    return [node];
+  });
+  const orderedMenus = orderedPharmacyMenuLabels("TOP", configuredOrder).map((label) => menus.find((menu) => menu.label === label)!).filter(Boolean).map(menu => ({ ...menu, items: menu.items ? filterNodes(menu.items) : undefined }));
   const visibleMenus = [...orderedMenus, ...menus.filter((menu) => menu.exit)].filter((menu) => {
-    return menu.label === "Purchase-Department" ? allowPurchase : menu.label === "Reports-Inventory" ? allowInventory : menu.label === "Reports-Account" ? allowLedger : menu.label === "Catalogue" ? allowCatalog : true;
+    if (menu.items && menu.items.length === 0) return false;
+    return menu.label === "Sales-Department" ? allowSales : menu.label === "Purchase-Department" ? allowPurchase : menu.label === "Reports-Inventory" ? allowInventory : menu.label === "Reports-Account" ? allowLedger : menu.label === "Catalogue" ? allowCatalog : true;
   });
   const navigate = (href: string) => {
     setOpen(null);
@@ -251,7 +302,7 @@ export function PharmacyModuleMenu({ onAction, onExit, superAdmin = false, allow
           {labelFor(menu.label)}{menu.items && !opensOtherDepartment && <ChevronDown size={13} className="ml-1 inline" />}
         </button>
         {open === menu.label && menu.items && <div role="menu" aria-label={menu.label} style={{ left: openPosition?.left ?? 8, top: openPosition?.top ?? 64 }} className="fixed z-[100] max-h-[76vh] min-w-64 max-w-[calc(100vw-16px)] overflow-y-auto rounded-none border border-[#aaa] bg-[#f5f4f1] p-1 text-[#444] shadow-lg">
-          {orderedPharmacyMenuLabels(menu.label, configuredOrder).map((label) => menu.items!.find((node) => node.label === label)!).filter((node) => menu.label !== "Sales-Department" || allowLedger || node.label !== "Change In Debtors").map((node) => <MenuNode key={node.label} node={node} groupPath={menu.label} menuOrder={configuredOrder} onAction={(action) => { setOpen(null); onAction(action); }} onNavigate={navigate} labelFor={labelFor} />)}
+          {orderedPharmacyMenuLabels(menu.label, configuredOrder).map((label) => menu.items!.find((node) => node.label === label)!).filter(Boolean).filter((node) => menu.label !== "Sales-Department" || allowLedger || node.label !== "Change In Debtors").map((node) => <MenuNode key={node.label} node={node} groupPath={menu.label} menuOrder={configuredOrder} onAction={(action) => { setOpen(null); onAction(action); }} onNavigate={navigate} labelFor={labelFor} />)}
         </div>}
       </div>;
       })}

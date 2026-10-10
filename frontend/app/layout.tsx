@@ -1,16 +1,14 @@
+import { Suspense } from "react";
 import type { Metadata } from "next";
 import Script from "next/script";
 import { Geist, Geist_Mono, Inter, Noto_Sans_Devanagari } from "next/font/google";
 import "./globals.css";
-import { ShopProvider } from "@/components/shop-provider";
 import { SiteConfigProvider } from "@/components/site-config-provider";
-import { SitePopup } from "@/components/site-popup";
 import { SiteSeo } from "@/components/site-seo";
 import { ManagementThemeProvider } from "@/components/management-theme-provider";
-import { AiPharmacyAssistant } from "@/components/ai-pharmacy-assistant";
 import { ConfiguredToaster } from "@/components/configured-toaster";
-import { ConfirmationModalHost } from "@/components/confirmation-modal";
-import { NotificationRealtime } from "@/components/notification-realtime";
+import { OfflineRuntime } from "@/components/offline-runtime";
+import { RoleAwareAppRuntime } from "@/components/role-aware-app-runtime";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -101,15 +99,11 @@ export default function RootLayout(props: { children: React.ReactNode; modal: Re
       <body className="min-h-full flex flex-col" suppressHydrationWarning>
         <SiteConfigProvider>
           <ManagementThemeProvider>
+            <OfflineRuntime />
             <SiteSeo />
-            <ShopProvider>
-              <NotificationRealtime />
-              {children}
-              <SitePopup />
-              {modal}
-              <AiPharmacyAssistant />
-              <ConfirmationModalHost />
-            </ShopProvider>
+            <Suspense fallback={<div role="status" className="p-6 text-sm text-slate-500">Loading workspace...</div>}>
+              <RoleAwareAppRuntime modal={modal}>{children}</RoleAwareAppRuntime>
+            </Suspense>
             <ConfiguredToaster />
           </ManagementThemeProvider>
         </SiteConfigProvider>

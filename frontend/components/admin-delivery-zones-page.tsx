@@ -1,4 +1,5 @@
 "use client";
+import { EntityListWorkspace, EntityListPanel, showEntityList, EntityFormPanel , entitySaveComplete } from "@/components/entity-list-panel";
 
 import { useEffect, useMemo, useState } from "react";
 import { Edit3, Loader2, MapPin, Plus, Trash2, Truck } from "lucide-react";
@@ -346,9 +347,9 @@ export function AdminDeliveryZonesPage({
           ? current.map((row) => (row.id === saved.id ? saved : row))
           : [saved, ...current],
       );
-      if (!saveAndAnother) router.push(listPath);
+      if (!saveAndAnother) showEntityList(listPath);
       else setForm(blank);
-    } catch (reason) {
+     entitySaveComplete(); } catch (reason) {
       const message = reason instanceof Error ? reason.message : "Delivery zone could not be saved.";
       setError(message);
       toast.error(message);
@@ -372,7 +373,7 @@ export function AdminDeliveryZonesPage({
         ),
       );
       toast.success(`${deleteTarget.name} Deactivated`);
-    } catch (reason) {
+     entitySaveComplete(); } catch (reason) {
       const message =
         reason instanceof Error
           ? reason.message
@@ -383,7 +384,133 @@ export function AdminDeliveryZonesPage({
       setDeleteTarget(null);
     }
   }
-  return (
+  const entityList0 = (
+        <Card className="mt-7">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MapPin size={18} className="text-[#003893]" />
+              Zone directory
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {loading ? (
+              <div className="p-10 text-center text-sm text-slate-500">
+                <Loader2 className="mr-2 inline animate-spin" size={18} />
+                Loading zones…
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Zone</TableHead>
+                      <TableHead>Branch</TableHead>
+                      <TableHead>Coverage</TableHead>
+                      <TableHead>Rules</TableHead>
+                      <TableHead>Status</TableHead>
+                      <TableHead />
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {rows.map((row) => (
+                      <TableRow key={row.id}>
+                        <TableCell className="font-bold">
+                          {row.name}
+                          <span className="block text-xs font-normal text-slate-500">
+                            {[row.municipality, row.district, row.province]
+                              .filter(Boolean)
+                              .join(", ") || "All locations"}
+                          </span>
+                        </TableCell>
+                        <TableCell>
+                          {row.branch?.name ?? "All branches"}
+                        </TableCell>
+                        <TableCell>
+                          {row.sameDayDelivery ? "Same day" : "Standard"}
+                        </TableCell>
+                        <TableCell>
+                          NPR {row.deliveryFee} · free over NPR{" "}
+                          {row.freeDeliveryThreshold}
+                        </TableCell>
+                        <TableCell>
+                          <ActiveStatusToggle
+                            checked={row.enabled}
+                            onChange={(isActive) =>
+                              void (async () => {
+                                try {
+                                  await setAdminEntityStatus(
+                                    "delivery-zone",
+                                    row.id,
+                                    isActive,
+                                    token(),
+                                    superAdmin,
+                                  );
+                                  setRows((current) =>
+                                    current.map((item) =>
+                                      item.id === row.id
+                                        ? { ...item, enabled: isActive }
+                                        : item,
+                                    ),
+                                  );
+                                  toast.success(
+                                    `${row.name} is now ${isActive ? "active" : "inactive"}`,
+                                  );
+                                 entitySaveComplete(); } catch (reason) {
+                                  const message =
+                                    reason instanceof Error
+                                      ? reason.message
+                                      : "Status could not be updated.";
+                                  setError(message);
+                                  toast.error(message);
+                                }
+                              })()
+                            }
+                            label={`delivery zone ${row.name}`}
+                            confirmOnDeactivate
+                          />
+                        </TableCell>
+                        <TableCell className="whitespace-nowrap text-right">
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Edit ${row.name}`}
+                            title={`Edit ${row.name}`}
+                            onClick={() =>
+                              router.push(`${listPath}/${row.id}/edit`)
+                            }
+                          >
+                            <Edit3 size={16} />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            aria-label={`Delete ${row.name}`}
+                            title={`Delete ${row.name}`}
+                            onClick={() => setDeleteTarget(row)}
+                          >
+                            <Trash2 size={16} />
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                    {!rows.length && (
+                      <TableRow>
+                        <TableCell
+                          colSpan={6}
+                          className="py-10 text-center text-sm text-slate-500"
+                        >
+                          No delivery zones have been configured.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      );
+  return <EntityListWorkspace title="Delivery Zones" enabled={view === "form"}>{(
     <AdminShell superAdmin={superAdmin}>
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div>
@@ -416,8 +543,8 @@ export function AdminDeliveryZonesPage({
           {error}
         </p>
       )}
-      {view === "form" ? (
-        <Card className="mt-7">
+      {(view === "form" ? <>(
+        <EntityFormPanel formKey="0"><Card className="mt-7">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Truck size={18} className="text-[#003893]" />
@@ -590,133 +717,8 @@ export function AdminDeliveryZonesPage({
               </form>
             )}
           </CardContent>
-        </Card>
-      ) : (
-        <Card className="mt-7">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <MapPin size={18} className="text-[#003893]" />
-              Zone directory
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {loading ? (
-              <div className="p-10 text-center text-sm text-slate-500">
-                <Loader2 className="mr-2 inline animate-spin" size={18} />
-                Loading zones…
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead>Zone</TableHead>
-                      <TableHead>Branch</TableHead>
-                      <TableHead>Coverage</TableHead>
-                      <TableHead>Rules</TableHead>
-                      <TableHead>Status</TableHead>
-                      <TableHead />
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {rows.map((row) => (
-                      <TableRow key={row.id}>
-                        <TableCell className="font-bold">
-                          {row.name}
-                          <span className="block text-xs font-normal text-slate-500">
-                            {[row.municipality, row.district, row.province]
-                              .filter(Boolean)
-                              .join(", ") || "All locations"}
-                          </span>
-                        </TableCell>
-                        <TableCell>
-                          {row.branch?.name ?? "All branches"}
-                        </TableCell>
-                        <TableCell>
-                          {row.sameDayDelivery ? "Same day" : "Standard"}
-                        </TableCell>
-                        <TableCell>
-                          NPR {row.deliveryFee} · free over NPR{" "}
-                          {row.freeDeliveryThreshold}
-                        </TableCell>
-                        <TableCell>
-                          <ActiveStatusToggle
-                            checked={row.enabled}
-                            onChange={(isActive) =>
-                              void (async () => {
-                                try {
-                                  await setAdminEntityStatus(
-                                    "delivery-zone",
-                                    row.id,
-                                    isActive,
-                                    token(),
-                                    superAdmin,
-                                  );
-                                  setRows((current) =>
-                                    current.map((item) =>
-                                      item.id === row.id
-                                        ? { ...item, enabled: isActive }
-                                        : item,
-                                    ),
-                                  );
-                                  toast.success(
-                                    `${row.name} is now ${isActive ? "active" : "inactive"}`,
-                                  );
-                                } catch (reason) {
-                                  const message =
-                                    reason instanceof Error
-                                      ? reason.message
-                                      : "Status could not be updated.";
-                                  setError(message);
-                                  toast.error(message);
-                                }
-                              })()
-                            }
-                            label={`delivery zone ${row.name}`}
-                            confirmOnDeactivate
-                          />
-                        </TableCell>
-                        <TableCell className="whitespace-nowrap text-right">
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Edit ${row.name}`}
-                            title={`Edit ${row.name}`}
-                            onClick={() =>
-                              router.push(`${listPath}/${row.id}/edit`)
-                            }
-                          >
-                            <Edit3 size={16} />
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            aria-label={`Delete ${row.name}`}
-                            title={`Delete ${row.name}`}
-                            onClick={() => setDeleteTarget(row)}
-                          >
-                            <Trash2 size={16} />
-                          </Button>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                    {!rows.length && (
-                      <TableRow>
-                        <TableCell
-                          colSpan={6}
-                          className="py-10 text-center text-sm text-slate-500"
-                        >
-                          No delivery zones have been configured.
-                        </TableCell>
-                      </TableRow>
-                    )}
-                  </TableBody>
-                </Table>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+        </Card></EntityFormPanel>
+      )<EntityListPanel formKey="0">{entityList0}</EntityListPanel></> : entityList0)}
       <AlertDialog
         open={Boolean(deleteTarget)}
         onOpenChange={(open) => !open && setDeleteTarget(null)}
@@ -743,5 +745,5 @@ export function AdminDeliveryZonesPage({
         </AlertDialogContent>
       </AlertDialog>
     </AdminShell>
-  );
+  )}</EntityListWorkspace>;
 }

@@ -1528,6 +1528,9 @@ namespace backend.Migrations
                     b.Property<DateTime?>("AcceptedAt")
                         .HasColumnType("datetime(6)");
 
+                    b.Property<DateTime?>("ArrivedAt")
+                        .HasColumnType("datetime(6)");
+
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
 
@@ -1575,6 +1578,100 @@ namespace backend.Migrations
                     b.ToTable("delivery_assignments", (string)null);
                 });
 
+            modelBuilder.Entity("backend.Models.DeliveryCashCollection", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("HandoverRequestId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("RiderId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId")
+                        .IsUnique();
+
+                    b.HasIndex("RiderId", "HandoverRequestId");
+
+                    b.ToTable("delivery_cash_collections", (string)null);
+                });
+
+            modelBuilder.Entity("backend.Models.DeliveryHandoverRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("CashHandoverId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(120)
+                        .HasColumnType("varchar(120)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("RiderId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("RiderId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("delivery_handover_requests", (string)null);
+                });
+
             modelBuilder.Entity("backend.Models.DeliveryLocation", b =>
                 {
                     b.Property<Guid>("Id")
@@ -1608,6 +1705,63 @@ namespace backend.Migrations
                         .IsUnique();
 
                     b.ToTable("delivery_locations", (string)null);
+                });
+
+            modelBuilder.Entity("backend.Models.DeliveryRetryRequest", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("OrderId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Reason")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("RequestedDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("RiderId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("OrderId");
+
+                    b.HasIndex("RiderId", "RequestId")
+                        .IsUnique();
+
+                    b.ToTable("delivery_retry_requests", (string)null);
                 });
 
             modelBuilder.Entity("backend.Models.DeliverySlot", b =>
@@ -1843,6 +1997,122 @@ namespace backend.Migrations
                     b.HasIndex("Published", "DisplayOrder");
 
                     b.ToTable("faqs", (string)null);
+                });
+
+            modelBuilder.Entity("backend.Models.FinancialVoucher", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(14, 2)
+                        .HasColumnType("decimal(14,2)");
+
+                    b.Property<string>("BankName")
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)");
+
+                    b.Property<Guid?>("BranchId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ChequeNumber")
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("CreatedBy")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("CreditAccount")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)");
+
+                    b.Property<Guid?>("CustomerLedgerEntryId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("CustomerPaymentId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("DebitAccount")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)");
+
+                    b.Property<Guid?>("InvoiceId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("JournalEntryId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Method")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Narration")
+                        .IsRequired()
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
+                    b.Property<string>("Number")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<string>("Payee")
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)");
+
+                    b.Property<DateTime?>("PostedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Reference")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)");
+
+                    b.Property<int>("Revision")
+                        .IsConcurrencyToken()
+                        .HasColumnType("int");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<Guid?>("SupplierInvoiceId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("SupplierPaymentId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("VoucherDate")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("InvoiceId");
+
+                    b.HasIndex("Number")
+                        .IsUnique();
+
+                    b.HasIndex("SupplierInvoiceId");
+
+                    b.HasIndex("BranchId", "VoucherDate");
+
+                    b.ToTable("financial_vouchers", (string)null);
                 });
 
             modelBuilder.Entity("backend.Models.FlashSale", b =>
@@ -4294,6 +4564,20 @@ namespace backend.Migrations
                     b.Property<int>("DisplayOrder")
                         .HasColumnType("int");
 
+                    b.Property<string>("ImageMatchingNotes")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<Guid?>("ImageMediaAssetId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("ImageSearchedAtUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("ImageSourcePageUrl")
+                        .HasMaxLength(1000)
+                        .HasColumnType("varchar(1000)");
+
                     b.Property<string>("ImageSourceReference")
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
@@ -4305,20 +4589,6 @@ namespace backend.Migrations
                     b.Property<string>("ImageSourceWebsite")
                         .HasMaxLength(240)
                         .HasColumnType("varchar(240)");
-
-                    b.Property<string>("ImageSourcePageUrl")
-                        .HasMaxLength(1000)
-                        .HasColumnType("varchar(1000)");
-
-                    b.Property<DateTime?>("ImageSearchedAtUtc")
-                        .HasColumnType("datetime(6)");
-
-                    b.Property<string>("ImageMatchingNotes")
-                        .HasMaxLength(2000)
-                        .HasColumnType("varchar(2000)");
-
-                    b.Property<Guid?>("ImageMediaAssetId")
-                        .HasColumnType("char(36)");
 
                     b.Property<string>("ImageUrl")
                         .HasColumnType("longtext");
@@ -4452,13 +4722,13 @@ namespace backend.Migrations
 
                     b.HasIndex("BrandId");
 
+                    b.HasIndex("ImageMediaAssetId");
+
                     b.HasIndex("IsHotDeal");
 
                     b.HasIndex("MedicineId");
 
                     b.HasIndex("RackId");
-
-                    b.HasIndex("ImageMediaAssetId");
 
                     b.HasIndex("ReorderLevel");
 
@@ -5219,6 +5489,43 @@ namespace backend.Migrations
                     b.ToTable("sale_return_items", (string)null);
                 });
 
+            modelBuilder.Entity("backend.Models.SalesCustomerAssignment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("ExecutiveId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Territory")
+                        .IsRequired()
+                        .HasMaxLength(160)
+                        .HasColumnType("varchar(160)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExecutiveId", "CustomerId", "BranchId")
+                        .IsUnique();
+
+                    b.ToTable("SalesCustomerAssignments");
+                });
+
             modelBuilder.Entity("backend.Models.SalesExecutiveProductAssignment", b =>
                 {
                     b.Property<Guid>("Id")
@@ -5258,6 +5565,122 @@ namespace backend.Migrations
                         {
                             t.HasCheckConstraint("CK_sales_executive_assignment_single_target", "((ProductId IS NOT NULL AND CategoryId IS NULL) OR (ProductId IS NULL AND CategoryId IS NOT NULL))");
                         });
+                });
+
+            modelBuilder.Entity("backend.Models.SalesExecutiveTarget", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<decimal>("DiscountLimitPercent")
+                        .HasPrecision(5, 2)
+                        .HasColumnType("decimal(5,2)");
+
+                    b.Property<Guid>("ExecutiveId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("Month")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<decimal>("TargetAmount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExecutiveId", "Month")
+                        .IsUnique();
+
+                    b.ToTable("SalesExecutiveTargets");
+                });
+
+            modelBuilder.Entity("backend.Models.SalesFieldRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("char(36)");
+
+                    b.Property<decimal>("Amount")
+                        .HasPrecision(18, 2)
+                        .HasColumnType("decimal(18,2)");
+
+                    b.Property<Guid>("BranchId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid>("CustomerId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid>("ExecutiveId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime?>("FollowUpAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Kind")
+                        .IsRequired()
+                        .HasMaxLength(20)
+                        .HasColumnType("varchar(20)");
+
+                    b.Property<string>("Notes")
+                        .IsRequired()
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<DateTime>("OccurredAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("OrderId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("PayloadJson")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<Guid>("RequestId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<Guid?>("ResultId")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("ReviewNote")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<DateTime?>("ReviewedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<Guid?>("ReviewedBy")
+                        .HasColumnType("char(36)");
+
+                    b.Property<string>("Status")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<DateTime>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExecutiveId", "RequestId")
+                        .IsUnique();
+
+                    b.HasIndex("BranchId", "Kind", "Status");
+
+                    b.ToTable("SalesFieldRecords");
                 });
 
             modelBuilder.Entity("backend.Models.SalesTemplate", b =>
@@ -6891,6 +7314,28 @@ namespace backend.Migrations
                     b.Navigation("Order");
                 });
 
+            modelBuilder.Entity("backend.Models.DeliveryCashCollection", b =>
+                {
+                    b.HasOne("backend.Models.PharmacyOrder", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+                });
+
+            modelBuilder.Entity("backend.Models.DeliveryHandoverRequest", b =>
+                {
+                    b.HasOne("backend.Models.StaffUser", "Rider")
+                        .WithMany()
+                        .HasForeignKey("RiderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Rider");
+                });
+
             modelBuilder.Entity("backend.Models.DeliveryLocation", b =>
                 {
                     b.HasOne("backend.Models.DeliveryAssignment", "DeliveryAssignment")
@@ -6900,6 +7345,25 @@ namespace backend.Migrations
                         .IsRequired();
 
                     b.Navigation("DeliveryAssignment");
+                });
+
+            modelBuilder.Entity("backend.Models.DeliveryRetryRequest", b =>
+                {
+                    b.HasOne("backend.Models.PharmacyOrder", "Order")
+                        .WithMany()
+                        .HasForeignKey("OrderId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("backend.Models.StaffUser", "Rider")
+                        .WithMany()
+                        .HasForeignKey("RiderId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Order");
+
+                    b.Navigation("Rider");
                 });
 
             modelBuilder.Entity("backend.Models.DeliverySlot", b =>
@@ -6966,6 +7430,30 @@ namespace backend.Migrations
                     b.Navigation("PreviousShift");
 
                     b.Navigation("StaffUser");
+                });
+
+            modelBuilder.Entity("backend.Models.FinancialVoucher", b =>
+                {
+                    b.HasOne("backend.Models.Branch", "Branch")
+                        .WithMany()
+                        .HasForeignKey("BranchId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("backend.Models.Invoice", "Invoice")
+                        .WithMany()
+                        .HasForeignKey("InvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.HasOne("backend.Models.SupplierInvoice", "SupplierInvoice")
+                        .WithMany()
+                        .HasForeignKey("SupplierInvoiceId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Branch");
+
+                    b.Navigation("Invoice");
+
+                    b.Navigation("SupplierInvoice");
                 });
 
             modelBuilder.Entity("backend.Models.FlashSale", b =>

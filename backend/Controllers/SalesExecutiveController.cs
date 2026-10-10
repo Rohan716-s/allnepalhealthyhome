@@ -27,7 +27,7 @@ public sealed class SalesExecutiveController(ApplicationDbContext db) : Controll
             .OrderByDescending(x => x.CreatedAt).Take(20).ToListAsync(ct);
         var assignments = await AssignmentTargets(ct);
         var mapped = rows.Select(x => ToRow(x, assignments.ProductIds, assignments.CategoryIds)).ToList();
-        return Ok(new SalesExecutiveDashboardResponse(totalOrders, mapped.Sum(x => x.RelevantSalesValue), start, end, mapped));
+        return Ok(new SalesExecutiveDashboardResponse(totalOrders, await query.Where(x => x.Status != OrderStatuses.Cancelled && x.Status != OrderStatuses.Failed).SumAsync(x => (decimal?)x.Total, ct) ?? 0, start, end, mapped));
     }
 
     [HttpGet("orders")]
@@ -50,28 +50,15 @@ public sealed class SalesExecutiveController(ApplicationDbContext db) : Controll
     [HttpPut("orders/{id:guid}/status")]
     public async Task<ActionResult<SalesExecutiveOrderRow>> OrderStatus(Guid id, OrderStatusRequest request, CancellationToken ct)
     {
-        if (!Authorized) return Forbid();
-        var order = await AssignedOrders(tracked: true).Include(x => x.Customer).Include(x => x.Branch).Include(x => x.Items).ThenInclude(x => x.Product).ThenInclude(x => x!.Medicine).ThenInclude(x => x!.Category).SingleOrDefaultAsync(x => x.Id == id, ct);
-        if (order is null) return NotFound();
-        if (!AllowedTransition(order.Status, request.Status)) return Conflict(new { message = $"The order cannot move from {order.Status} to {request.Status}." });
-        var previous = order.Status;
-        order.Status = request.Status.Trim().ToUpperInvariant();
-        order.UpdatedAt = DateTime.UtcNow;
-        db.OrderStatusHistory.Add(new OrderStatusHistory { OrderId = order.Id, Status = order.Status, Note = request.Note, ActorId = StaffId.ToString(), ActorRole = User.FindFirstValue(ClaimTypes.Role) });
-        db.ActivityLogs.Add(new ActivityLog { ActorId = StaffId, ActorRole = StaffRoles.SalesExecutive, Action = "SALES_EXECUTIVE_CHANGED_ORDER_STATUS", EntityType = "PharmacyOrder", EntityId = order.Id.ToString(), PreviousValue = previous, NewValue = order.Status, IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString() });
-        await db.SaveChangesAsync(ct);
-        var assignments = await AssignmentTargets(ct);
-        return Ok(ToRow(order, assignments.ProductIds, assignments.CategoryIds));
+        await Task.CompletedTask;
+        return StatusCode(403, new { message = "Sales executives track orders; pharmacist and delivery staff manage fulfilment." });
     }
 
     private IQueryable<PharmacyOrder> AssignedOrders(bool tracked = false)
     {
         var query = tracked ? db.Orders.AsQueryable() : db.Orders.AsNoTracking();
-        if (BranchId.HasValue) query = query.Where(order => order.BranchId == BranchId.Value);
-        return query.Where(order => order.Items.Any(item => db.SalesExecutiveProductAssignments.Any(assignment =>
-            assignment.SalesExecutiveUserId == StaffId && assignment.IsActive &&
-            ((assignment.ProductId.HasValue && assignment.ProductId == item.ProductId) ||
-             (assignment.CategoryId.HasValue && item.Product != null && item.Product.Medicine != null && item.Product.Medicine.CategoryId == assignment.CategoryId)))));
+        return query.Where(order => BranchId.HasValue && order.BranchId == BranchId.Value &&
+            db.SalesFieldRecords.Any(r => r.ExecutiveId == StaffId && r.Kind == "ORDER" && r.OrderId == order.Id));
     }
 
     private async Task<(HashSet<Guid> ProductIds, HashSet<Guid> CategoryIds)> AssignmentTargets(CancellationToken ct)
@@ -82,7 +69,7 @@ public sealed class SalesExecutiveController(ApplicationDbContext db) : Controll
 
     private static SalesExecutiveOrderRow ToRow(PharmacyOrder order, HashSet<Guid> productIds, HashSet<Guid> categoryIds)
     {
-        var items = order.Items.Where(item => productIds.Contains(item.ProductId) || (item.Product?.Medicine?.CategoryId is Guid categoryId && categoryIds.Contains(categoryId)))
+        var items = order.Items
             .Select(item => new SalesExecutiveOrderItemRow(item.ProductId, item.ProductName, item.Product?.Medicine?.Category?.Name, item.Quantity, item.UnitPrice, item.Quantity * item.UnitPrice)).ToList();
         return new SalesExecutiveOrderRow(order.Id, order.OrderNumber, order.Customer?.FullName ?? "Customer", order.Customer?.Phone, order.CreatedAt, order.Status, order.Branch?.Name, items, items.Sum(x => x.SalesValue));
     }

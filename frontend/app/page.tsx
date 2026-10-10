@@ -88,7 +88,7 @@ function toCatalogProduct(product: ApiProduct): CatalogProduct {
 }
 
 function toHotDealProduct(product: TrendingProduct): CatalogProduct {
-  return { id: product.slug, name: product.name, genericName: "", brand: "", category: "", description: "", price: product.sellingPrice, stock: 1, unit: "Pack", sku: "", prescriptionRequired: false, featured: false, pricesVisible: product.pricesVisible !== false, imageUrl: product.imageUrl, imageUrls: product.imageUrls, visual: product.name.slice(0, 3).toUpperCase(), tone: "from-rose-50 to-amber-50" };
+  return { id: product.slug, name: product.name, genericName: "", brand: "", category: "", description: "", price: product.sellingPrice, stock: Math.max(0, product.stockQuantity ?? 0), unit: "Pack", sku: "", prescriptionRequired: false, featured: false, pricesVisible: product.pricesVisible !== false, imageUrl: product.imageUrl, imageUrls: product.imageUrls, visual: product.name.slice(0, 3).toUpperCase(), tone: "from-rose-50 to-amber-50" };
 }
 
 function sectionContent(section?: HomepageSection): SectionContent {

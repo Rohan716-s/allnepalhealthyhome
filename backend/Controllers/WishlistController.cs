@@ -23,8 +23,13 @@ public sealed class WishlistController(ApplicationDbContext db) : ControllerBase
         if (!User.TryGetCustomerId(out var customerId)) return Unauthorized();
         var product = await db.Products.SingleOrDefaultAsync(x => x.IsActive && (x.Sku == productCode || x.Slug == productCode || x.Id.ToString() == productCode), ct);
         if (product is null) return NotFound(new { message = "Product not found." });
-        var item = await db.WishlistItems.SingleOrDefaultAsync(x => x.CustomerId == customerId && x.ProductId == product.Id, ct);
-        if (item is null) { item = new WishlistItem { CustomerId = customerId, ProductId = product.Id }; db.WishlistItems.Add(item); await db.SaveChangesAsync(ct); }
+        var now = DateTime.UtcNow;
+        // A PUT is idempotent, including when multiple requests arrive together.
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO wishlist_items (Id, CustomerId, ProductId, CreatedAt, UpdatedAt)
+            VALUES ({Guid.NewGuid()}, {customerId}, {product.Id}, {now}, {now})
+            ON DUPLICATE KEY UPDATE Id = Id
+            """, ct);
         return Ok(new CustomerWishlistItem(product.Id, product.Sku));
     }
 

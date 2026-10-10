@@ -1,9 +1,11 @@
 "use client";
 
+import { UniversalImageUploader } from "@/components/universal-image-uploader";
+
 /* eslint-disable @next/next/no-img-element -- private local object URLs are used for upload previews. */
 
 import { useEffect, useMemo, useState, type FormEvent } from "react";
-import { AlertCircle, FileCheck2, FileText, FileUp, Pencil, Plus, ShieldCheck, ShoppingCart, Trash2, UploadCloud } from "lucide-react";
+import { AlertCircle, FileCheck2, FileText, FileUp, Pencil, Plus, ShieldCheck, ShoppingCart, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 import { SiteFooter, SiteHeader } from "@/components/site-header";
 import { StatusBadge } from "@/components/status-badge";
@@ -60,7 +62,6 @@ export default function PrescriptionPage() {
   const [stage, setStage] = useState<Stage>("idle");
   const [uploadProgress, setUploadProgress] = useState(0);
   const [error, setError] = useState("");
-  const [dragging, setDragging] = useState(false);
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editing, setEditing] = useState<EditableItem>(emptyItem);
   const [manual, setManual] = useState("");
@@ -265,17 +266,7 @@ export default function PrescriptionPage() {
             </CardHeader>
             <CardContent>
               <form onSubmit={scan} className="grid gap-5">
-                <label
-                  onDragOver={(event) => { event.preventDefault(); setDragging(true); }}
-                  onDragLeave={() => setDragging(false)}
-                  onDrop={(event) => { event.preventDefault(); setDragging(false); chooseFile(event.dataTransfer.files?.[0]); }}
-                  className={`flex min-h-48 cursor-pointer flex-col items-center justify-center rounded-2xl border-2 border-dashed px-5 text-center transition ${dragging ? "border-teal-500 bg-teal-50" : "border-teal-200 bg-teal-50/50 hover:border-teal-400"}`}
-                >
-                  <UploadCloud size={32} className="text-teal-600" />
-                  <span className="mt-3 text-sm font-extrabold text-slate-800">{file ? file.name : "Drop your prescription here"}</span>
-                  <span className="mt-1 text-xs text-slate-500">JPG, PNG, WebP, or PDF · up to 10 MB · camera supported on mobile</span>
-                  <input aria-label="Prescription file" type="file" accept="image/jpeg,image/png,image/webp,application/pdf" capture="environment" onChange={(event) => { chooseFile(event.target.files?.[0]); event.currentTarget.value = ""; }} className="sr-only" />
-                </label>
+                <UniversalImageUploader label="Prescription file" accept="image/jpeg,image/png,image/webp,application/pdf" maxBytes={10 * 1024 * 1024} onChange={chooseFile} onRemove={() => { setFile(null); setStage("idle"); setUploadProgress(0); }} disabled={stage === "uploading" || stage === "scanning"} uploadState={stage === "uploading" ? "uploading" : "idle"} uploadProgress={uploadProgress} helperText="Keep all prescription details readable. PNG, WebP, JPEG or PDF up to 10 MB." />
 
                 {file && (
                   <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-3">
@@ -284,13 +275,12 @@ export default function PrescriptionPage() {
                       <p className="truncate text-sm font-bold text-slate-800">{file.name}</p>
                       <p className="text-xs text-slate-500">{(file.size / 1024 / 1024).toFixed(2)} MB · {file.type === "application/pdf" ? "PDF document" : "Image"}</p>
                     </div>
-                    <Button type="button" variant="ghost" size="icon-sm" aria-label="Remove selected file" onClick={() => { setFile(null); setStage("idle"); setUploadProgress(0); }}><Trash2 /></Button>
                   </div>
                 )}
 
                 {filePreview && (file?.type === "application/pdf"
                   ? <iframe title="Selected prescription PDF preview" src={filePreview} className="h-64 w-full rounded-xl border border-slate-200 bg-white" />
-                  : <img src={filePreview} alt="Selected prescription preview" className="max-h-64 w-full rounded-xl border border-slate-200 bg-white object-contain" />)}
+                  : <img src={filePreview} alt="Selected prescription preview" className="max-h-64 w-full rounded-xl border border-slate-200 object-contain" />)}
 
                 {(stage === "uploading" || stage === "scanning") && (
                   <div className="grid gap-2" aria-live="polite">

@@ -1,4 +1,7 @@
 "use client";
+import { useContext } from "react";
+import { EmbeddedListContext } from "@/components/entity-list-panel";
+
 
 /* eslint-disable react-hooks/set-state-in-effect -- restore secure session and persisted sidebar preferences after mount. */
 import Link from "next/link";
@@ -50,15 +53,17 @@ import { resolveSidebarIcon } from "@/lib/sidebar-icons";
 import { AccountProfileMenu } from "@/components/account-profile-menu";
 import { MessagingLink } from "@/components/messaging-link";
 import { isProfileOrLogoutSidebarItem } from "@/lib/sidebar-navigation";
+import { isCustomerWebsitePath } from "@/lib/staff-routing";
 
 const adminNav = [
+  { label: "Sales team workspace", href: "/sales-management", Icon: ClipboardList },
   { label: "Dashboard", href: "/admin", Icon: LayoutDashboard },
   { label: "HRMS", href: "/admin/hrms", Icon: Users },
   { label: "Attendance", href: "/admin/hrms?tab=attendance", Icon: CalendarDays },
   { label: "Leave", href: "/admin/hrms?tab=leave", Icon: CalendarPlus },
   { label: "HR setup", href: "/admin/hrms?tab=setup", Icon: Settings },
   { label: "Office operations", href: "/admin/hrms?tab=office", Icon: ClipboardList },
-  { label: "Sales & Purchase", href: "/admin/sales-purchase", Icon: CreditCard },
+  { label: "Sales & Purchase", href: "/admin/sales-purchase", Icon: CreditCard, permission: "sales_purchase.view" },
   { label: "Orders", href: "/admin/orders", Icon: Store },
   { label: "Live deliveries", href: "/admin/delivery-live", Icon: MapPin, permission: "orders.view" },
   { label: "Prescriptions", href: "/admin/prescriptions", Icon: FileText },
@@ -88,6 +93,7 @@ const adminNav = [
   { label: "Reports", href: "/admin/reports", Icon: BarChart3 },
 ];
 const superNav = [
+  { label: "Sales team workspace", href: "/sales-management", Icon: ClipboardList },
   { label: "Dashboard", href: "/superadmin", Icon: LayoutDashboard },
   { label: "HRMS", href: "/superadmin/hrms", Icon: Users },
   { label: "Attendance", href: "/superadmin/hrms?tab=attendance", Icon: CalendarDays },
@@ -252,6 +258,7 @@ export function AdminShell({
   superAdmin?: boolean;
   supervisor?: boolean;
 }) {
+  const embeddedList = useContext(EmbeddedListContext);
   const router = useRouter();
   const pathname = usePathname();
   const [staff, setStaff] = useState<Staff | null>(null);
@@ -434,7 +441,7 @@ export function AdminShell({
       ? [
           ...configuredNav
             .filter(
-              (item) => item.isVisible && !isProfileOrLogoutSidebarItem(item),
+              (item) => item.isVisible && !isProfileOrLogoutSidebarItem(item) && !isCustomerWebsitePath(item.href),
             )
             .map((item) => ({
               ...item,
@@ -535,7 +542,7 @@ export function AdminShell({
 
   // Edit routes are rendered inside AdminEditDialogShell. Keep the secure
   // session check, but do not duplicate the full sidebar/header inside it.
-  if (pathname.includes("/edit")) return <>{children}</>;
+  if (embeddedList || pathname.includes("/edit")) return <>{children}</>;
 
   return (
     <div className="min-h-screen bg-slate-100">
@@ -662,18 +669,18 @@ export function AdminShell({
                       : "/admin",
                 },
                 {
-                  label: "My Orders",
+                  label: "Manage orders",
                   href: superAdmin
                     ? "/superadmin/orders"
                     : supervisor
                       ? "/supervisor/orders"
                       : "/admin/orders",
                 },
-                { label: "Wishlist", href: "/wishlist" },
               ]}
             />
           </div>
         </div>
+      <div className="flex justify-end px-4 pb-1"></div>
       </header>
       <div
         className={

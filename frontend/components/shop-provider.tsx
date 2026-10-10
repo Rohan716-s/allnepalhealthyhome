@@ -18,6 +18,7 @@ import {
   getCustomerCart,
   getCustomerWishlist,
   getProducts,
+  getProductBySlug,
   removeCustomerCartItem,
   removeCustomerWishlist,
   setCustomerCartItemQuantity,
@@ -35,6 +36,7 @@ import { requestSiteConfirmation } from "@/lib/confirmation-events";
 import { savePendingGuestAction } from "@/lib/pending-guest-action";
 import { useSiteConfig } from "@/components/site-config-provider";
 import { getOrderingCopy, getProductOrderingRule, ORDERING_SETTING_KEY, parseOrderingSettings } from "@/lib/ordering";
+import { getAuthenticatedStaffRole } from "@/lib/staff-routing";
 
 export type CartLine = {
   productId: string;
@@ -64,7 +66,7 @@ type ShopContextValue = {
   removeFromCart: (productId: string) => void;
   clearCart: () => void;
   getProduct: (productId: string) => Product | undefined;
-  toggleWishlist: (productId: string, sourceElement?: HTMLElement | null) => void;
+  toggleWishlist: (productId: string, sourceElement?: HTMLElement | null, productOverride?: Product) => void;
   isWishlisted: (productId: string) => boolean;
 };
 
@@ -132,7 +134,13 @@ function fromApiProduct(product: ApiProduct): Product {
   };
 }
 
-export function ShopProvider({ children }: { children: ReactNode }) {
+export function ShopProvider({
+  children,
+  enabled = true,
+}: {
+  children: ReactNode;
+  enabled?: boolean;
+}) {
   const router = useRouter();
   const { settings, locale } = useSiteConfig();
   const ordering = useMemo(() => parseOrderingSettings(settings[ORDERING_SETTING_KEY]), [settings]);
@@ -145,6 +153,18 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   const cartRef = useRef<CartLine[]>([]);
   const guestRedirectTimer = useRef<number | null>(null);
   const customerLoadRef = useRef(0);
+  const pendingWishlist = useRef(new Set<string>());
+  const cartMutationQueue = useRef<Promise<unknown>>(Promise.resolve());
+  const enqueueCartMutation = useCallback(<T,>(token: string, action: () => Promise<T>): Promise<T> => {
+    const next = cartMutationQueue.current.catch(() => undefined).then(() => {
+      if (window.localStorage.getItem("anhh-access-token") !== token) {
+        throw new ApiError("Your session has changed. Please try again.", 409);
+      }
+      return action();
+    });
+    cartMutationQueue.current = next.catch(() => undefined);
+    return next;
+  }, []);
   useEffect(() => {
     cartRef.current = cart;
   }, [cart]);
@@ -169,6 +189,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
           unit: existing?.unit ?? "1 item",
           sku: item.productCode,
           prescriptionRequired: item.prescriptionRequired,
+          pricesVisible: item.pricesVisible !== false,
           featured: existing?.featured,
           badge: existing?.badge,
           wholesaleDiscountPercent: existing?.wholesaleDiscountPercent,
@@ -205,6 +226,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const showCartError = useCallback((error: unknown) => {
+    clearExpiredCustomerSession(error);
     toast.error(error instanceof Error ? error.message : "The cart could not be updated. Please try again.");
   }, []);
 
@@ -240,23 +262,33 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         if (checked) rememberStockNotification(product);
         if (hasSomeStock) {
           try {
-            const response = await addCustomerCartItem(product.sku, available, token);
+            const response = await enqueueCartMutation(token, () => addCustomerCartItem(product.sku, available, token));
             if (window.localStorage.getItem("anhh-access-token") !== token) return;
             syncCartFromServer(response);
             announceHeaderAnimation("cart", product, sourceElement);
             toast.success(`${product.name} added to cart`, { description: `${available} available unit${available === 1 ? "" : "s"} added.` });
           } catch (error) {
-            showCartError(error);
+            if (window.localStorage.getItem("anhh-access-token") === token) showCartError(error);
           }
         } else {
           router.push(`/products?category=${encodeURIComponent(product.category)}`);
         }
       },
     });
-  }, [announceHeaderAnimation, rememberStockNotification, router, showCartError]);
+  }, [announceHeaderAnimation, rememberStockNotification, router, showCartError, enqueueCartMutation]);
 
   useEffect(() => {
+    if (!enabled) return;
     const loadCatalog = () => {
+      if (getAuthenticatedStaffRole()) {
+        // A staff session should not retain customer catalog, cart, or wishlist data.
+        customerLoadRef.current += 1;
+        setCart([]);
+        setWishlist([]);
+        setCatalogProducts(fallbackProducts);
+        setHydrated(false);
+        return;
+      }
       const loadId = ++customerLoadRef.current;
       const token = window.localStorage.getItem("anhh-access-token");
       const isCurrentLoad = () => loadId === customerLoadRef.current
@@ -270,9 +302,19 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       const loadCustomerState = (liveProducts: Product[]) => {
         if (!token || !isCurrentLoad()) return;
         getCustomerWishlist(token)
-          .then((items) => {
+          .then(async (items) => {
+            const savedProducts = await Promise.all(items.map(async (item) => {
+              const existing = liveProducts.find((product) => product.sku === item.productCode);
+              if (existing) return existing;
+              return fromApiProduct(await getProductBySlug(item.productId));
+            }));
             if (!isCurrentLoad()) return;
-            setWishlist(items.map((item) => liveProducts.find((product) => product.sku === item.productCode)?.id).filter((id): id is string => Boolean(id)));
+            setCatalogProducts((current) => {
+              const products = new Map(current.map((product) => [product.id, product]));
+              savedProducts.forEach((product) => products.set(product.id, product));
+              return Array.from(products.values());
+            });
+            setWishlist(savedProducts.map((product) => product.id));
           })
           .catch((error) => {
             if (!isCurrentLoad()) return;
@@ -290,6 +332,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       getProducts({ pageSize: 100 })
         .then((response) => {
           const liveProducts = response.items.map(fromApiProduct);
+          if (!isCurrentLoad()) return;
           setCatalogProducts(liveProducts);
           loadCustomerState(liveProducts);
         })
@@ -304,11 +347,17 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       loadCatalog();
     }, 0);
     window.addEventListener("anhh-auth-changed", loadCatalog);
+    window.addEventListener("storage", loadCatalog);
+    window.addEventListener("anhh-offline-refresh", loadCatalog);
+    window.addEventListener("anhh-offline-synced", loadCatalog);
     return () => {
       window.clearTimeout(timer);
       window.removeEventListener("anhh-auth-changed", loadCatalog);
+      window.removeEventListener("storage", loadCatalog);
+      window.removeEventListener("anhh-offline-refresh", loadCatalog);
+      window.removeEventListener("anhh-offline-synced", loadCatalog);
     };
-  }, [showCartError]);
+  }, [enabled, showCartError]);
 
   const productLookup = useMemo(
     () => new Map(catalogProducts.map((product) => [product.id, product])),
@@ -374,7 +423,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         }
         const safeQuantity = Math.min(product.stock, requestedQuantity);
         if (token) {
-          void addCustomerCartItem(product.sku, safeQuantity, token)
+          void enqueueCartMutation(token, () => addCustomerCartItem(product.sku, safeQuantity, token))
             .then((response) => {
               if (window.localStorage.getItem("anhh-access-token") !== token) return;
               syncCartFromServer(response);
@@ -398,7 +447,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         const token = window.localStorage.getItem("anhh-access-token");
         const previous = cartRef.current;
         setCart((current) => safeQuantity === 0 ? current.filter((line) => line.productId !== productId) : current.map((line) => line.productId === productId ? { ...line, quantity: safeQuantity } : line));
-        if (token && product) void setCustomerCartItemQuantity(product.sku, safeQuantity, token)
+        if (token && product) void enqueueCartMutation(token, () => setCustomerCartItemQuantity(product.sku, safeQuantity, token))
           .then((response) => { if (window.localStorage.getItem("anhh-access-token") === token) syncCartFromServer(response); })
           .catch((error) => { if (window.localStorage.getItem("anhh-access-token") === token) { setCart(previous); showCartError(error); } });
       },
@@ -407,18 +456,23 @@ export function ShopProvider({ children }: { children: ReactNode }) {
         const token = window.localStorage.getItem("anhh-access-token");
         const previous = cartRef.current;
         setCart((current) => current.filter((line) => line.productId !== productId));
-        if (token && product) void removeCustomerCartItem(product.sku, token)
+        if (token && product) void enqueueCartMutation(token, () => removeCustomerCartItem(product.sku, token))
           .then((response) => { if (window.localStorage.getItem("anhh-access-token") === token) syncCartFromServer(response); })
           .catch((error) => { if (window.localStorage.getItem("anhh-access-token") === token) { setCart(previous); showCartError(error); } });
       },
       clearCart: () => {
         const token = window.localStorage.getItem("anhh-access-token");
         setCart([]);
-        if (token) void clearCustomerCart(token).catch(showCartError);
+        if (token) void enqueueCartMutation(token, () => clearCustomerCart(token)).catch((error) => {
+          if (window.localStorage.getItem("anhh-access-token") === token) showCartError(error);
+        });
       },
-      toggleWishlist: (productId, sourceElement) => {
-        const product = productLookup.get(productId);
-        if (!product) return;
+      toggleWishlist: (productId, sourceElement, productOverride) => {
+        const product = productLookup.get(productId) ?? productOverride;
+        if (!product || pendingWishlist.current.has(productId)) return;
+        if (!productLookup.has(productId)) {
+          setCatalogProducts((current) => current.some((item) => item.id === productId) ? current : [...current, product]);
+        }
         const removing = wishlist.includes(productId);
         const token = window.localStorage.getItem("anhh-access-token");
         if (!token && !removing) {
@@ -430,16 +484,25 @@ export function ShopProvider({ children }: { children: ReactNode }) {
           ? current.filter((id) => id !== productId)
           : current.includes(productId) ? current : [...current, productId]);
         if (token && product) {
+          pendingWishlist.current.add(productId);
           void (removing
             ? removeCustomerWishlist(product.sku, token)
             : addCustomerWishlist(product.sku, token)
           ).then(() => {
+            if (window.localStorage.getItem("anhh-access-token") !== token) return;
             announceHeaderAnimation("wishlist", product, sourceElement, removing ? "pop" : "flight");
             toast.success(removing ? "Removed from wishlist" : "Saved to wishlist", { description: product.name });
           }).catch((error) => {
-            setWishlist(previous);
+            if (window.localStorage.getItem("anhh-access-token") !== token) return;
+            if (clearExpiredCustomerSession(error)) {
+              toast.error("Your session has expired. Please sign in again.");
+              return;
+            }
+            setWishlist((current) => previous.includes(productId)
+              ? current.includes(productId) ? current : [...current, productId]
+              : current.filter((id) => id !== productId));
             toast.error(error instanceof Error ? error.message : "The wishlist could not be updated. Please try again.");
-          });
+          }).finally(() => pendingWishlist.current.delete(productId));
           return;
         }
         announceHeaderAnimation("wishlist", product, sourceElement, removing ? "pop" : "flight");
@@ -461,6 +524,7 @@ export function ShopProvider({ children }: { children: ReactNode }) {
       ordering,
       orderingCopy,
       showCartError,
+      enqueueCartMutation,
     ],
   );
 

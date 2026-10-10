@@ -1,10 +1,12 @@
 "use client";
 
+import { UniversalImageUploader } from "@/components/universal-image-uploader";
+
 /* eslint-disable react-hooks/set-state-in-effect -- restore the selected authenticated account after mount. */
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { HubConnection, HubConnectionBuilder, HttpTransportType, LogLevel } from "@microsoft/signalr";
-import { ChevronLeft, FileText, MapPin, MessageCircle, Paperclip, RefreshCw, Search, Send, ShieldCheck, UserRound, X } from "lucide-react";
+import { ChevronLeft, FileText, MapPin, MessageCircle, RefreshCw, Search, Send, ShieldCheck, UserRound, X } from "lucide-react";
 import { toast } from "sonner";
 import { API_BASE_URL, ApiError, createMessagingConversation, downloadMessagingAttachment, getMessagingContacts, getMessagingConversations, getMessagingThread, markMessagingConversationRead, sendMessagingMessage, uploadMessagingAttachment, type MessageConversation, type MessagingContact, type PlatformMessage } from "@/services/api";
 
@@ -44,6 +46,7 @@ export function MessagingCenter({ accountType, returnTo = "/messages" }: { accou
   const [liveConnectionError, setLiveConnectionError] = useState(false);
   const [connection, setConnection] = useState<HubConnection>();
   const [attachment, setAttachment] = useState<File>();
+  const [attachmentGeneration, setAttachmentGeneration] = useState(0);
   const [loadError, setLoadError] = useState("");
   const [mobileThreadOpen, setMobileThreadOpen] = useState(false);
   const bottomRef = useRef<HTMLDivElement>(null);
@@ -291,7 +294,7 @@ export function MessagingCenter({ accountType, returnTo = "/messages" }: { accou
         : await sendMessagingMessage(selectedId, { body: compose.trim() }, token);
       setThread((current) => current.some((item) => item.id === message.id) ? current : [...current, message]);
       setCompose("");
-      setAttachment(undefined);
+      setAttachment(undefined); setAttachmentGeneration(value => value + 1);
       await loadConversations(token);
       void connection?.invoke("Typing", selectedId, false).catch(() => undefined);
     } catch (error) {
@@ -416,9 +419,9 @@ export function MessagingCenter({ accountType, returnTo = "/messages" }: { accou
 
           <div className="messages-composer border-t border-slate-200 bg-white p-3 sm:p-4">
             {selectedSummary?.isClosed && <div className="mb-3 rounded-xl bg-slate-100 px-3 py-2 text-xs font-medium text-slate-700">This order conversation is closed after delivery or cancellation.</div>}
-            {attachment && <div className="mb-2 flex min-w-0 items-center justify-between gap-2 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-800"><span className="truncate">{attachment.name}</span><button type="button" onClick={() => setAttachment(undefined)} aria-label="Remove attachment" className="grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003893]"><X size={14} /></button></div>}
+            {attachment && <div className="mb-2 flex min-w-0 items-center justify-between gap-2 rounded-lg bg-slate-100 px-3 py-2 text-xs text-slate-800"><span className="truncate">{attachment.name}</span><button type="button" onClick={() => { setAttachment(undefined); setAttachmentGeneration(value => value + 1); }} aria-label="Remove attachment" className="grid h-7 w-7 shrink-0 place-items-center rounded-md hover:bg-slate-200 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003893]"><X size={14} /></button></div>}
             <div className="flex items-end gap-1.5 sm:gap-2">
-              <label className={`grid h-11 w-10 shrink-0 place-items-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-100 hover:text-[#003893] focus-within:ring-2 focus-within:ring-[#003893] ${selectedSummary?.isClosed ? "pointer-events-none opacity-50" : "cursor-pointer"}`} title="Attach a file"><Paperclip size={18} /><span className="sr-only">Attach a file</span><input type="file" disabled={selectedSummary?.isClosed} className="sr-only" accept="image/*,.pdf,.doc,.docx,.xls,.xlsx" onChange={(event) => setAttachment(event.target.files?.[0])} /></label>
+              <UniversalImageUploader key={attachmentGeneration} label="Attach a file" accept="image/jpeg,image/png,image/webp,application/pdf,.doc,.docx,.xls,.xlsx" maxBytes={10 * 1024 * 1024} disabled={selectedSummary?.isClosed || sending} onChange={setAttachment} onRemove={() => { setAttachment(undefined); setAttachmentGeneration(value => value + 1); }} aspect="h-24" className="max-w-56" />
               <button type="button" onClick={shareLocation} disabled={selectedSummary?.isClosed} className="grid h-11 w-10 shrink-0 place-items-center rounded-xl border border-slate-300 text-slate-700 transition hover:bg-slate-100 hover:text-[#003893] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003893] disabled:cursor-not-allowed disabled:opacity-50" aria-label="Share current location" title="Share current location"><MapPin size={18} /></button>
               <textarea disabled={selectedSummary?.isClosed || sending} value={compose} onChange={(event) => { setCompose(event.target.value); if (selectedId) void connection?.invoke("Typing", selectedId, event.target.value.length > 0).catch(() => undefined); }} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} rows={1} maxLength={4000} aria-label="Write a message" placeholder={selectedSummary?.isClosed ? "Conversation closed" : "Write a message…"} className="max-h-28 min-h-11 min-w-0 flex-1 resize-y rounded-xl border border-slate-300 bg-white px-3 py-3 text-sm leading-5 text-slate-950 outline-none placeholder:text-slate-500 focus:border-[#003893] focus:ring-2 focus:ring-[#003893]/20 disabled:cursor-not-allowed disabled:bg-slate-100 disabled:text-slate-600" />
               <button type="button" onClick={() => void send()} disabled={selectedSummary?.isClosed || sending || (!compose.trim() && !attachment)} className="grid h-11 w-11 shrink-0 place-items-center rounded-xl bg-[#003893] text-white transition hover:bg-[#002b70] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#003893] focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:bg-slate-400" aria-label={sending ? "Sending message" : "Send message"} title="Send message"><Send size={17} /></button>

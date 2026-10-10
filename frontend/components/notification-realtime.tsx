@@ -23,6 +23,12 @@ export function NotificationRealtime() {
         window.dispatchEvent(new CustomEvent("anhh-notification", { detail: notice }));
         toast.info(notice.title || "New notification", { description: notice.body || "You have an update." });
       });
+      next.on("delivery-location-changed", (change: { orderId?: string }) => {
+        window.dispatchEvent(new CustomEvent("anhh-delivery-location-changed", { detail: change }));
+      });
+      next.onreconnected(() => {
+        window.dispatchEvent(new CustomEvent("anhh-delivery-location-changed", { detail: {} }));
+      });
       connection = next;
       try { await next.start(); } catch { /* Reconnect when network or auth state changes. */ }
     };

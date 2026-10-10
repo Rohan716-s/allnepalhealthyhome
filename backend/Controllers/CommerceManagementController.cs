@@ -26,14 +26,16 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     private Guid? ActorBranchId => Guid.TryParse(User.FindFirstValue("branch_id"), out var id) ? id : null;
     private string ActorRole => User.FindFirstValue(ClaimTypes.Role) ?? "STAFF";
 
-    private bool CanView => SuperAdminPath ? IsSuperAdmin : IsSuperAdmin || IsAdmin || IsAccountant || IsSalesExecutive;
-    private bool CanSell => SuperAdminPath ? IsSuperAdmin : IsSuperAdmin || IsAdmin || IsAccountant || IsSalesExecutive;
-    private bool CanPurchase => SuperAdminPath ? IsSuperAdmin : IsSuperAdmin || IsAdmin || IsAccountant;
-    private bool CanLedger => SuperAdminPath ? IsSuperAdmin : IsSuperAdmin || IsAdmin || IsAccountant;
+    private bool WorkspacePermission(string permission) => (SuperAdminPath ? IsSuperAdmin : User.TryGetStaffId(out _)) && User.HasStaffPermission(SalesPurchasePermissions.View) && User.HasStaffPermission(permission);
+    private bool CanView => (SuperAdminPath ? IsSuperAdmin : User.TryGetStaffId(out _)) && User.HasStaffPermission(SalesPurchasePermissions.View);
+    private bool CanSalesView => WorkspacePermission(SalesPurchasePermissions.SalesView);
+    private bool CanSell => WorkspacePermission(SalesPurchasePermissions.SalesManage);
+    private bool CanPurchase => WorkspacePermission(HttpMethods.IsGet(Request.Method) ? SalesPurchasePermissions.PurchaseView : SalesPurchasePermissions.PurchaseManage);
+    private bool CanLedger => WorkspacePermission(SalesPurchasePermissions.AccountsView);
     private bool CanInventoryView => SuperAdminPath ? IsSuperAdmin : IsSuperAdmin || !IsSalesExecutive && User.HasStaffPermission(AppPermissions.InventoryView);
-    private bool CanInventoryAdjust => SuperAdminPath ? IsSuperAdmin : IsSuperAdmin || IsAdmin && User.HasStaffPermission(AppPermissions.InventoryAdjust);
+    private bool CanInventoryAdjust => SuperAdminPath ? IsSuperAdmin : IsSuperAdmin || User.HasStaffPermission(AppPermissions.InventoryAdjust);
     private bool CanInventoryValuation => SuperAdminPath ? IsSuperAdmin : IsSuperAdmin || User.HasStaffPermission(AppPermissions.InventoryValuationView);
-    private bool CanManageProductMaster => SuperAdminPath ? IsSuperAdmin : IsSuperAdmin || IsAdmin && User.HasStaffPermission(AppPermissions.CatalogManage);
+    private bool CanManageProductMaster => SuperAdminPath ? IsSuperAdmin : IsSuperAdmin || User.HasStaffPermission(AppPermissions.CatalogManage);
     // A branch assignment is the data boundary, regardless of staff role. An
     // unassigned Admin/Accountant is treated as Head Office; operational roles
     // that require a branch fail closed when their assignment is missing.
@@ -54,6 +56,15 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
 
     private bool BranchAllowed(Guid branchId)
         => !HasBranchScope || ActorBranchId == branchId;
+
+    [HttpGet("branches")]
+    public async Task<IActionResult> Branches(CancellationToken ct)
+    {
+        if (!CanView) return Forbid();
+        var query = db.Branches.AsNoTracking().Where(x => x.IsActive);
+        if (HasBranchScope) query = query.Where(x => ActorBranchId != null && x.Id == ActorBranchId);
+        return Ok(await query.OrderBy(x => x.Name).Select(x => new { id = x.Id, name = x.Name, address = x.Address, x.IsActive, x.DeliveryEnabled, x.PickupEnabled }).ToListAsync(ct));
+    }
 
     [HttpGet("summary")]
     public async Task<IActionResult> Summary(DateTime? from, DateTime? to, Guid? branchId, CancellationToken ct)
@@ -94,21 +105,21 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
         var today = ApplicationTime.NepalNow.Date;
         return Ok(new
         {
-            sales = orders.Sum(x => x.Total),
-            salesCount = orders.Count,
-            purchases = purchases.Sum(x => x.Items.Sum(item => item.QuantityReceived * item.UnitCost)),
-            purchaseCount = purchases.Count,
-            receivables,
-            payables,
-            netCredit = receivables - payables,
+            sales = CanSalesView ? (orders.Sum(x => x.Total)) : 0,
+            salesCount = CanSalesView ? (orders.Count) : 0,
+            purchases = CanPurchase ? purchases.Sum(x => x.Items.Sum(item => item.QuantityReceived * item.UnitCost)) : 0m,
+            purchaseCount = CanPurchase ? purchases.Count : 0,
+            receivables = CanLedger ? receivables : 0m,
+            payables = CanLedger ? payables : 0m,
+            netCredit = CanLedger ? receivables - payables : 0m,
             stockValue = CanInventoryValuation ? inventory.Sum(x => x.StockQuantity * x.PurchasePrice) : (decimal?)null,
             lowStock = inventory.Count(x => x.StockQuantity - x.ReservedQuantity <= x.MinimumStock),
             nearExpiry = inventory.Count(x => x.ExpiryDate.HasValue && x.ExpiryDate.Value.Date >= today && x.ExpiryDate.Value.Date <= today.AddDays(90)),
-            profit = orders.Count == 0 ? 0m : await ProfitForOrders(orders.Select(x => x.Id), ct)
-            ,cashCollected
-            ,creditIssued
-            ,totalReturns
-            ,netSales = orders.Sum(x => x.Total) - totalReturns
+            profit = CanSalesView ? (orders.Count == 0 ? 0m : await ProfitForOrders(orders.Select(x => x.Id), ct)) : 0
+            ,cashCollected = CanSalesView ? cashCollected : 0m
+            ,creditIssued = CanSalesView ? creditIssued : 0m
+            ,totalReturns = CanSalesView ? totalReturns : 0m
+            ,netSales = CanSalesView ? (orders.Sum(x => x.Total) - totalReturns) : 0
         });
     }
 
@@ -226,7 +237,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     [HttpGet("products/{id:guid}/history")]
     public async Task<IActionResult> ProductHistory(Guid id, Guid? branchId, CancellationToken ct)
     {
-        if (!CanView) return Forbid();
+        if (!CanSalesView) return Forbid();
         if (branchId.HasValue && !BranchAllowed(branchId.Value)) return Forbid();
 
         var movementsQuery = db.StockTransactions.AsNoTracking()
@@ -288,7 +299,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     [HttpGet("customers")]
     public async Task<IActionResult> Customers(string? search, CancellationToken ct)
     {
-        if (!CanSell && !CanLedger) return Forbid();
+        if (!CanSalesView && !CanLedger) return Forbid();
         var query = db.Customers.AsNoTracking().Where(x => x.IsActive);
         if (HasBranchScope && ActorBranchId is Guid branchId)
             query = query.Where(x => db.Orders.Any(o => o.CustomerId == x.Id && o.BranchId == branchId) || db.CustomerPayments.Any(p => p.CustomerId == x.Id && p.BranchId == branchId));
@@ -300,7 +311,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     [HttpGet("suppliers")]
     public async Task<IActionResult> Suppliers(string? search, CancellationToken ct)
     {
-        if (!CanPurchase && !CanLedger) return Forbid();
+        if (!CanPurchase && !CanLedger && !WorkspacePermission(SalesPurchasePermissions.JournalView)) return Forbid();
         var query = db.Suppliers.AsNoTracking().Where(x => x.IsActive);
         if (HasBranchScope && ActorBranchId is Guid branchId)
             query = query.Where(x => db.PurchaseOrders.Any(p => p.SupplierId == x.Id && p.BranchId == branchId) || db.SupplierInvoices.Any(i => i.SupplierId == x.Id && (i.BranchId == branchId || i.BranchId == null && i.PurchaseOrder != null && i.PurchaseOrder.BranchId == branchId)) || db.SupplierPayments.Any(p => p.SupplierId == x.Id && p.BranchId == branchId));
@@ -312,7 +323,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     [HttpGet("sales")]
     public async Task<IActionResult> Sales(DateTime? from, DateTime? to, Guid? branchId, string? paymentStatus, string? paymentMethod, Guid? customerId, Guid? productId, string? search, CancellationToken ct)
     {
-        if (!CanView) return Forbid();
+        if (!CanSalesView) return Forbid();
         var (start, end) = Range(from, to);
         var query = ScopeOrders(db.Orders.AsNoTracking().Include(x => x.Customer).ThenInclude(x => x!.PartySector).Include(x => x.Branch).Include(x => x.Address).Include(x => x.Invoice).Include(x => x.Items).ThenInclude(x => x.Product).ThenInclude(x => x!.Medicine).ThenInclude(x => x!.Category).Include(x => x.Items).ThenInclude(x => x.Product).ThenInclude(x => x!.Medicine).ThenInclude(x => x!.Manufacturer).Where(x => x.CreatedAt >= start && x.CreatedAt < end));
         if (branchId.HasValue) query = query.Where(x => x.BranchId == branchId.Value);
@@ -333,7 +344,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     [HttpGet("sales/invoice")]
     public async Task<IActionResult> SalesInvoiceLookup(string? invoiceNumber, CancellationToken ct)
     {
-        if (!CanView) return Forbid();
+        if (!CanSalesView) return Forbid();
         var number = invoiceNumber?.Trim();
         if (string.IsNullOrWhiteSpace(number)) return BadRequest(new { message = "Enter an invoice number." });
         var query = ScopeOrders(db.Orders.AsNoTracking()
@@ -386,7 +397,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     [HttpGet("sales-returns")]
     public async Task<IActionResult> SalesReturns(DateTime? from, DateTime? to, Guid? branchId, Guid? customerId, string? search, CancellationToken ct)
     {
-        if (!CanSell) return Forbid();
+        if (!CanSalesView) return Forbid();
         var (start, end) = Range(from, to);
         var scopedOrderIds = await ScopeOrders(db.Orders.AsNoTracking()).Select(x => x.Id).ToListAsync(ct);
         var query = db.SaleReturns.AsNoTracking().Include(x => x.Customer).Include(x => x.Branch).Include(x => x.Items).ThenInclude(x => x.Product).Where(x => x.ReturnDate >= start && x.ReturnDate < end && x.OrderId.HasValue && scopedOrderIds.Contains(x.OrderId.Value));
@@ -400,7 +411,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     [HttpGet("sales-returns/lookup")]
     public async Task<IActionResult> SalesReturnLookup(string? number, CancellationToken ct)
     {
-        if (!CanSell) return Forbid();
+        if (!CanSalesView) return Forbid();
         var returnNumber = number?.Trim();
         if (string.IsNullOrWhiteSpace(returnNumber)) return BadRequest(new { message = "Enter a credit note number." });
         var scopedOrderIds = await ScopeOrders(db.Orders.AsNoTracking()).Select(x => x.Id).ToListAsync(ct);
@@ -419,7 +430,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     [HttpGet("sales-reports/user-cash-summary")]
     public async Task<IActionResult> UserCashSummary(DateTime? from, DateTime? to, Guid? branchId, bool includeCard = true, CancellationToken ct = default)
     {
-        if (!CanView || IsSalesExecutive) return Forbid();
+        if (!CanSalesView || IsSalesExecutive) return Forbid();
         var (start, end) = Range(from, to);
         var ordersQuery = db.Orders.AsNoTracking().Include(x => x.Invoice).Include(x => x.PaymentTransactions)
             .Where(x => x.CreatedAt >= start && x.CreatedAt < end && x.Status != OrderStatuses.Cancelled && x.Status != OrderStatuses.Failed);
@@ -505,7 +516,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     [HttpGet("sales-reports/change-in-debtors")]
     public async Task<IActionResult> ChangeInDebtors(DateTime? from, DateTime? to, Guid? branchId, CancellationToken ct)
     {
-        if (!CanLedger || IsSalesExecutive) return Forbid();
+        if (!CanLedger) return Forbid();
         var (start, end) = Range(from, to);
         var query = db.CustomerLedgerEntries.AsNoTracking().Include(x => x.Invoice).ThenInclude(x => x!.Order)
             .Where(x => x.EntryDate < end);
@@ -1766,6 +1777,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
         await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
         var order = await ScopeOrders(db.Orders.Include(x => x.Items).Include(x => x.Customer)).SingleOrDefaultAsync(x => x.Id == request.OrderId, ct);
         if (order is null || order.Status is OrderStatuses.Cancelled or OrderStatuses.Failed || order.BranchId is not Guid branchId) return NotFound(new { message = "The sale could not be found in your operational scope." });
+        if (await db.FinancialVouchers.AnyAsync(x => x.Status == "POSTED" && x.Invoice != null && x.Invoice.OrderId == order.Id, ct)) return Conflict(new { message = "Unpost linked financial receipts and notes before changing or reversing this sale." });
         var sold = order.Items.SingleOrDefault(x => x.ProductId == request.ProductId);
         var refundMethod = string.IsNullOrWhiteSpace(request.RefundMethod) ? "CREDIT" : request.RefundMethod.ToUpperInvariant();
         if (refundMethod is not "CASH" and not "CREDIT") return BadRequest(new { message = "Refund method must be CASH or CREDIT." });
@@ -1872,6 +1884,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
         else return Conflict(new { message = "This batch is missing its original supplier invoice link, so the return cannot safely change the supplier ledger." });
         var supplierInvoice = await supplierInvoiceQuery.OrderByDescending(x => x.InvoiceDate).FirstOrDefaultAsync(ct);
         if (supplierInvoice is null) return Conflict(new { message = "The original supplier invoice for this batch could not be found." });
+        if (await db.FinancialVouchers.AnyAsync(x => x.Status == "POSTED" && x.SupplierInvoiceId == supplierInvoice.Id, ct)) return Conflict(new { message = "Unpost linked supplier payments and notes before returning stock from this invoice." });
         if (amount > supplierInvoice.Total) return Conflict(new { message = "This return is larger than the original supplier invoice value for the batch." });
         var linkedPurchaseOrderId = stock.PurchaseOrderId ?? supplierInvoice.PurchaseOrderId;
         var item = new PurchaseReturn { ReturnNumber = $"ANHH-PR-{ApplicationTime.NepalNow:yyyyMMddHHmmss}-{Random.Shared.Next(100, 999)}", PurchaseOrderId = linkedPurchaseOrderId, SupplierInvoiceId = supplierInvoice.Id, SupplierId = supplier.Id, BranchId = request.BranchId, ReturnDate = ApplicationTime.NepalNow, Status = "APPROVED", TotalAmount = amount, Reason = request.Reason?.Trim() };
@@ -1903,6 +1916,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
             var order = await ScopeOrders(db.Orders.Include(x => x.Invoice).Include(x => x.PaymentTransactions))
                 .SingleOrDefaultAsync(x => x.Id == saleReturn.OrderId.Value, ct);
             if (order is null) return NotFound(new { message = "The source sale was not found in your operational scope." });
+            if (await db.FinancialVouchers.AnyAsync(x => x.Status == "POSTED" && x.Invoice != null && x.Invoice.OrderId == order.Id, ct)) return Conflict(new { message = "Unpost linked financial receipts and notes before changing or reversing this sale." });
 
             var originalReturnMovements = await db.StockTransactions.AsNoTracking()
                 .Where(x => x.ReferenceType == "SALES_RETURN" && x.ReferenceId == saleReturn.Id.ToString())
@@ -2030,6 +2044,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
         await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
         var order = await ScopeOrders(db.Orders.Include(x => x.Invoice).Include(x => x.Items).Include(x => x.Customer).Include(x => x.StatusHistory)).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (order is null || order.BranchId is not Guid branchId) return NotFound(new { message = "The sale was not found in your operational scope." });
+        if (await db.FinancialVouchers.AnyAsync(x => x.Status == "POSTED" && x.Invoice != null && x.Invoice.OrderId == order.Id, ct)) return Conflict(new { message = "Unpost linked financial receipts and notes before changing or reversing this sale." });
         if (order.Status is OrderStatuses.Cancelled or OrderStatuses.Failed || order.Invoice?.PaymentStatus == "VOID") return Conflict(new { message = "This sale has already been voided." });
         if (string.IsNullOrWhiteSpace(request.Reason)) return BadRequest(new { message = "A void reason is required." });
         if (!BranchAllowed(branchId)) return Forbid();
@@ -2134,6 +2149,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
         await using var transaction = await db.Database.BeginTransactionAsync(System.Data.IsolationLevel.Serializable, ct);
         var purchase = await db.PurchaseOrders.Include(x => x.Supplier).Include(x => x.Items).SingleOrDefaultAsync(x => x.Id == id, ct);
         if (purchase is null || !BranchAllowed(purchase.BranchId)) return NotFound(new { message = "The purchase was not found in your operational scope." });
+        if (await db.FinancialVouchers.AnyAsync(x => x.Status == "POSTED" && x.SupplierInvoice != null && x.SupplierInvoice.PurchaseOrderId == purchase.Id, ct)) return Conflict(new { message = "Unpost linked supplier payments and notes before reversing this purchase." });
         if (purchase.Status == PurchaseOrderStatuses.Cancelled) return Conflict(new { message = "This purchase has already been voided." });
         if (string.IsNullOrWhiteSpace(request.Reason)) return BadRequest(new { message = "A void reason is required." });
         var notePrefix = $"Purchase receipt {purchase.OrderNumber}";
@@ -2182,6 +2198,7 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     [HttpPost("customer-payments")]
     public async Task<IActionResult> RecordCustomerPayment(CustomerPaymentRequest request, CancellationToken ct)
     {
+        if (!WorkspacePermission(SalesPurchasePermissions.ReceiptsManage)) return Forbid();
         if (!CanLedger || request.Amount <= 0 || !PaymentModes.Contains(request.Method.ToUpperInvariant())) return BadRequest(new { message = "Choose a customer, positive amount and valid payment method." });
         if (HasBranchScope && (!ActorBranchId.HasValue || request.BranchId.HasValue && request.BranchId != ActorBranchId)) return Forbid();
         if (HasBranchScope && ActorBranchId is Guid customerBranch && !await db.Orders.AnyAsync(x => x.CustomerId == request.CustomerId && x.BranchId == customerBranch) && !await db.CustomerPayments.AnyAsync(x => x.CustomerId == request.CustomerId && x.BranchId == customerBranch, ct)) return NotFound(new { message = "Customer not found in your branch." });
@@ -2198,12 +2215,13 @@ public sealed class CommerceManagementController(ApplicationDbContext db) : Cont
     [HttpPost("supplier-payments")]
     public async Task<IActionResult> RecordSupplierPayment(SupplierPaymentRequest request, CancellationToken ct)
     {
+        if (!WorkspacePermission(SalesPurchasePermissions.JournalManage)) return Forbid();
         if (!CanLedger || request.Amount <= 0 || !PaymentModes.Contains(request.Method.ToUpperInvariant())) return BadRequest(new { message = "Choose a supplier, positive amount and valid payment method." });
         if (HasBranchScope && (!ActorBranchId.HasValue || request.BranchId.HasValue && request.BranchId != ActorBranchId)) return Forbid();
         if (HasBranchScope && ActorBranchId is Guid supplierBranch && !await db.PurchaseOrders.AnyAsync(x => x.SupplierId == request.SupplierId && x.BranchId == supplierBranch) && !await db.SupplierInvoices.AnyAsync(x => x.SupplierId == request.SupplierId && (x.BranchId == supplierBranch || x.BranchId == null && x.PurchaseOrder != null && x.PurchaseOrder.BranchId == supplierBranch), ct) && !await db.SupplierPayments.AnyAsync(x => x.SupplierId == request.SupplierId && x.BranchId == supplierBranch, ct)) return NotFound(new { message = "Supplier not found in your branch." });
         if (!await db.Suppliers.AnyAsync(x => x.Id == request.SupplierId && x.IsActive, ct)) return NotFound(new { message = "Supplier not found." });
         var payment = new SupplierPayment { SupplierId = request.SupplierId, BranchId = BranchForWrite(request.BranchId), PaymentNumber = $"SPAY-{ApplicationTime.NepalNow:yyyyMMddHHmmss}-{Random.Shared.Next(100, 999)}", Amount = request.Amount, Method = request.Method.ToUpperInvariant(), PaymentDate = request.PaymentDate ?? ApplicationTime.NepalNow, Reference = request.Reference?.Trim(), Notes = request.Notes?.Trim() };
-        var remaining = request.Amount; var invoices = await db.SupplierInvoices.Where(x => x.Status != "VOID" && x.SupplierId == request.SupplierId).OrderBy(x => x.DueAt ?? x.InvoiceDate).ToListAsync(ct);
+        var remaining = request.Amount; var invoices = await db.SupplierInvoices.Where(x => x.Status != "VOID" && x.SupplierId == request.SupplierId && (!HasBranchScope || x.BranchId == ActorBranchId || x.BranchId == null && x.PurchaseOrder != null && x.PurchaseOrder.BranchId == ActorBranchId)).OrderBy(x => x.DueAt ?? x.InvoiceDate).ToListAsync(ct);
         foreach (var invoice in invoices) { if (remaining <= 0) break; var openBalance = Math.Max(0m, invoice.Total - invoice.PaidAmount); if (openBalance <= 0) continue; var applied = Math.Min(remaining, openBalance); invoice.PaidAmount += applied; invoice.Status = invoice.PaidAmount >= invoice.Total ? "PAID" : "PARTIAL"; remaining -= applied; }
         foreach (var purchaseOrderId in invoices.Where(x => x.PurchaseOrderId.HasValue).Select(x => x.PurchaseOrderId!.Value).Distinct()) await SyncPurchaseOrderPaymentStatus(purchaseOrderId, ct);
         db.SupplierPayments.Add(payment); db.ActivityLogs.Add(new ActivityLog { ActorId = ActorId, ActorRole = ActorRole, Action = "SUPPLIER_PAYMENT_RECORDED", EntityType = "SupplierPayment", EntityId = payment.Id.ToString(), NewValue = payment.PaymentNumber, IpAddress = HttpContext.Connection.RemoteIpAddress?.ToString() }); await db.SaveChangesAsync(ct); return Ok(new { paymentNumber = payment.PaymentNumber, applied = request.Amount - remaining, unapplied = remaining });

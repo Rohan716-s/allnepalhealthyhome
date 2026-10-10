@@ -43,6 +43,7 @@ public sealed class PrescriptionFileStorage(IConfiguration configuration, IHostE
         var bytes = new byte[file.Length];
         await input.ReadExactlyAsync(bytes, cancellationToken);
         if (!HasExpectedSignature(bytes, extension)) throw new InvalidDataException("The uploaded file is not a valid image or PDF.");
+        if (file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) ImageContentValidation.Validate(bytes, extension);
         Directory.CreateDirectory(root);
         var storedName = $"{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
         await File.WriteAllBytesAsync(Path.Combine(root, storedName), bytes, cancellationToken);

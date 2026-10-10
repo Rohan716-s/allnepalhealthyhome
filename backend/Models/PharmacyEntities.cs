@@ -1060,6 +1060,7 @@ public sealed class DeliveryAssignment : AuditedEntity
     public Guid DeliveryStaffId { get; set; }
     public required string Status { get; set; }
     public DateTime? AcceptedAt { get; set; }
+    public DateTime? ArrivedAt { get; set; }
     public DateTime? PickedUpAt { get; set; }
     public DateTime? OutForDeliveryAt { get; set; }
     public DateTime? DeliveredAt { get; set; }
@@ -1513,10 +1514,13 @@ public static class AppPermissions
         CustomersView, CustomersManage, PrescriptionsView, PrescriptionsOverride, BranchesManage, WebsiteManage,
         ReportsView, AuditView, SettingsManage, CouponsManage, FlashSalesManage, PurchaseOrdersManage, StaffManage, NotificationsView, NotificationsManage, ReviewsManage, SupportManage,
         AttendanceSelf, AttendanceTeam, AttendanceAll, AttendanceManage, HrmsView, HrmsManage, AttendanceCorrect, AttendanceApprove, HrSettingsManage, LeaveApply, LeaveView, LeaveApprove, PayrollView, PayrollManage, AccountsView, ExpensesManage,
-        FinanceInvoicesView, FinanceInvoicesManage, FinancePaymentsManage, FinanceLedgerView, FinancePayablesManage, FinanceReconciliationManage, FinanceTaxManage, SalesAssignmentsManage
+        FinanceInvoicesView, FinanceInvoicesManage, FinancePaymentsManage, FinanceLedgerView, FinancePayablesManage, FinanceReconciliationManage, FinanceTaxManage, SalesAssignmentsManage,
+        .. SalesPurchasePermissions.Definitions.Select(x => x.Key)
     ];
 
-    public static IReadOnlySet<string> DefaultsFor(string role)
+    public static IReadOnlySet<string> DefaultsFor(string role) => new HashSet<string>(LegacyDefaultsFor(role).Concat(SalesPurchasePermissions.DefaultsFor(role)), StringComparer.OrdinalIgnoreCase);
+
+    private static IReadOnlySet<string> LegacyDefaultsFor(string role)
     {
         if (role.Equals(StaffRoles.SuperAdmin, StringComparison.OrdinalIgnoreCase)) return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         if (role.Equals(StaffRoles.Admin, StringComparison.OrdinalIgnoreCase)) return new HashSet<string>(new[]
@@ -1536,7 +1540,7 @@ public static class AppPermissions
         }, StringComparer.OrdinalIgnoreCase);
         if (role.Equals(StaffRoles.Delivery, StringComparison.OrdinalIgnoreCase)) return new HashSet<string>(new[] { AttendanceSelf, LeaveApply, LeaveView }, StringComparer.OrdinalIgnoreCase);
         if (role.Equals(StaffRoles.Accountant, StringComparison.OrdinalIgnoreCase)) return new HashSet<string>(new[] { AttendanceSelf, LeaveApply, LeaveView, InventoryView, InventoryValuationView, AccountsView, PayrollView, PayrollManage, ExpensesManage, ReportsView, FinanceInvoicesView, FinanceInvoicesManage, FinancePaymentsManage, FinanceLedgerView, FinancePayablesManage, FinanceReconciliationManage, FinanceTaxManage }, StringComparer.OrdinalIgnoreCase);
-        if (role.Equals(StaffRoles.SalesExecutive, StringComparison.OrdinalIgnoreCase)) return new HashSet<string>(new[] { CatalogView, OrdersView, OrdersManage, CustomersView, ReportsView }, StringComparer.OrdinalIgnoreCase);
+        if (role.Equals(StaffRoles.SalesExecutive, StringComparison.OrdinalIgnoreCase)) return new HashSet<string>(new[] { CatalogView, OrdersView, CustomersView, ReportsView, AttendanceSelf, LeaveApply, LeaveView }, StringComparer.OrdinalIgnoreCase);
         if (role.Equals(StaffRoles.SalesManager, StringComparison.OrdinalIgnoreCase)) return new HashSet<string>(new[] { CatalogView, OrdersView, OrdersManage, CustomersView, CustomersManage, ReportsView, SalesAssignmentsManage }, StringComparer.OrdinalIgnoreCase);
         if (role.Equals(StaffRoles.PurchaseInventoryManager, StringComparison.OrdinalIgnoreCase)) return new HashSet<string>(new[] { CatalogView, CatalogManage, InventoryView, InventoryAdjust, InventoryValuationView, PurchaseOrdersManage, BranchesManage, ReportsView }, StringComparer.OrdinalIgnoreCase);
         if (role.Equals(StaffRoles.HrManager, StringComparison.OrdinalIgnoreCase)) return new HashSet<string>(new[] { HrmsView, HrmsManage, AttendanceTeam, AttendanceAll, AttendanceManage, AttendanceCorrect, AttendanceApprove, HrSettingsManage, LeaveView, LeaveApprove, PayrollView, ReportsView }, StringComparer.OrdinalIgnoreCase);
@@ -1643,6 +1647,7 @@ public static class DeliveryStatuses
 {
     public const string Assigned = "ASSIGNED_FOR_DELIVERY";
     public const string Accepted = "ACCEPTED";
+    public const string Arrived = "ARRIVED";
     public const string PickedUp = "PICKED_UP";
     public const string OutForDelivery = "OUT_FOR_DELIVERY";
     public const string Delivered = "DELIVERED";

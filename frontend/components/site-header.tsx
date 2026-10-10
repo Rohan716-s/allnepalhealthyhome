@@ -1,5 +1,6 @@
 "use client";
 
+
 import Link from "next/link";
 import Image from "next/image";
 import { useRouter } from "next/navigation";
@@ -970,6 +971,7 @@ export function SiteHeader({ hero = false }: { hero?: boolean }) {
             </nav>
           </div>
         )}
+      <div className="flex justify-end px-4 pb-1"></div>
       </header>
     );
 
@@ -1451,7 +1453,8 @@ export function SiteHeader({ hero = false }: { hero?: boolean }) {
               <LanguageSwitcher mobile />
             </div>
           </div>
-        </header>
+        <div className="flex justify-end px-4 pb-1"></div>
+      </header>
       </div>
       <Dialog open={loginOpen} onOpenChange={setLoginOpen}>
         <DialogContent

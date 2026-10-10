@@ -29,12 +29,13 @@ public sealed class CartController(ApplicationDbContext db) : ControllerBase
         var available = Available(product);
         if (available < 1) return Conflict(new { message = "This product is out of stock." });
         var cart = await GetOrCreateCart(customerId, ct);
-        var item = await db.CartItems.SingleOrDefaultAsync(x => x.CartId == cart.Id && x.ProductId == product.Id, ct);
-        var requested = (item?.Quantity ?? 0) + request.Quantity;
-        var nextQuantity = Math.Min(available, requested);
-        if (item is null) db.CartItems.Add(new CartItem { CartId = cart.Id, ProductId = product.Id, Quantity = nextQuantity });
-        else item.Quantity = nextQuantity;
-        await db.SaveChangesAsync(ct);
+        var now = DateTime.UtcNow;
+        // Increment atomically so concurrent additions neither collide nor lose units.
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO cart_items (Id, CartId, ProductId, Quantity, CreatedAt, UpdatedAt)
+            VALUES ({Guid.NewGuid()}, {cart.Id}, {product.Id}, {Math.Min(available, request.Quantity)}, {now}, {now})
+            ON DUPLICATE KEY UPDATE Quantity = LEAST({available}, Quantity + {request.Quantity}), UpdatedAt = {now}
+            """, ct);
         return Ok(await ResponseForCart(cart.Id, [], ct));
     }
 
@@ -48,7 +49,7 @@ public sealed class CartController(ApplicationDbContext db) : ControllerBase
         var item = await db.CartItems.Include(x => x.Product).ThenInclude(x => x!.Inventory).SingleOrDefaultAsync(x => x.CartId == cart.Id && x.Product!.IsActive && (x.Product.Sku == productCode || x.Product.Slug == productCode), ct);
         if (item is null) return NotFound(new { message = "This item is not in your cart." });
         if (request.Quantity == 0) db.CartItems.Remove(item);
-        else item.Quantity = Math.Min(Available(item.Product!), request.Quantity);
+        else { item.Quantity = Math.Min(Available(item.Product!), request.Quantity); item.UpdatedAt = DateTime.UtcNow; }
         await db.SaveChangesAsync(ct);
         return Ok(await ResponseForCart(cart.Id, [], ct));
     }
@@ -110,10 +111,13 @@ public sealed class CartController(ApplicationDbContext db) : ControllerBase
     {
         var cart = await db.Carts.SingleOrDefaultAsync(x => x.CustomerId == customerId, ct);
         if (cart is not null) return cart;
-        cart = new Cart { CustomerId = customerId };
-        db.Carts.Add(cart);
-        await db.SaveChangesAsync(ct);
-        return cart;
+        var now = DateTime.UtcNow;
+        await db.Database.ExecuteSqlInterpolatedAsync($"""
+            INSERT INTO carts (Id, CustomerId, CreatedAt, UpdatedAt)
+            VALUES ({Guid.NewGuid()}, {customerId}, {now}, {now})
+            ON DUPLICATE KEY UPDATE Id = Id
+            """, ct);
+        return await db.Carts.SingleAsync(x => x.CustomerId == customerId, ct);
     }
 
     private Task<Cart?> LoadCart(Guid customerId, CancellationToken ct) => db.Carts.AsNoTracking().AsSplitQuery().Include(x => x.Items).ThenInclude(x => x.Product).ThenInclude(x => x!.Medicine).Include(x => x.Items).ThenInclude(x => x.Product).ThenInclude(x => x!.Inventory).SingleOrDefaultAsync(x => x.CustomerId == customerId, ct);
@@ -126,13 +130,13 @@ public sealed class CartController(ApplicationDbContext db) : ControllerBase
 
     private Task<Product?> FindProduct(string code, CancellationToken ct) => db.Products.Include(x => x.Medicine).Include(x => x.Inventory).SingleOrDefaultAsync(x => x.IsActive && (x.Sku == code || x.Slug == code), ct);
 
-    private static int Available(Product product) => product.Inventory.Where(x => !x.ExpiryDate.HasValue || x.ExpiryDate.Value.Date >= DateTime.UtcNow.Date).Sum(x => Math.Max(0, x.StockQuantity - x.ReservedQuantity));
+    private static int Available(Product product) => InventoryAvailability.ForProduct(product.Inventory, ApplicationTime.NepalNow.Date);
 
     private async Task<CustomerCartResponse> BuildResponse(IEnumerable<CartItem> items, IReadOnlyList<string> warnings, CancellationToken ct)
     {
         var lines = items.Where(x => x.Product?.IsActive == true).Select(x => new CustomerCartLine(x.ProductId, x.Product!.Sku, x.Product.Slug, x.Product.Name, x.Quantity, Available(x.Product), x.Product.Medicine?.PrescriptionRequired == true, x.Product.ImageUrl, x.Product.SellingPrice)).ToList();
         var visible = await OrderPolicyReader.PricesVisibleAsync(db, User, ct);
         if (!visible) lines = lines.Select(x => x with { SellingPrice = 0, PricesVisible = false }).ToList();
-        return new CustomerCartResponse(lines, warnings, lines.Sum(x => x.Quantity));
+        return new CustomerCartResponse(lines, warnings, lines.Sum(x => x.Quantity), OfflineSyncPolicy.CartVersion(items));
     }
 }

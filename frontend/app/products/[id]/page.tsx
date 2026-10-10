@@ -181,11 +181,13 @@ export default function ProductDetailPage({
               {productDescription}
             </p>
             <p className="mt-3 rounded-xl bg-blue-50 px-4 py-3 text-xs leading-5 text-blue-900"><TypewriterText text={productCopy.instructions || orderCopy.orderInstructions} /></p>
-            <div className="mt-6 flex items-center gap-2 text-xs font-bold text-emerald-700">
-              <span className="h-2 w-2 rounded-full bg-emerald-500" />{" "}
-              {product.stock < 10
-                ? `${product.stock} ${t("product.left")}`
-                : t("product.inStock")}
+            <div className={`mt-6 flex items-center gap-2 text-xs font-bold ${product.stock < 1 ? "text-rose-600" : product.stock < 10 ? "text-amber-600" : "text-emerald-700"}`}>
+              <span className="h-2 w-2 rounded-full bg-current" />{" "}
+              {product.stock < 1
+                ? orderCopy.outOfStock
+                : product.stock < 10
+                  ? `${product.stock} ${t("product.left")}`
+                  : t("product.inStock")}
             </div>
             <div className="mt-7 flex flex-wrap gap-3">
               <div className="flex items-center rounded-xl border border-slate-200 bg-white">
@@ -203,6 +205,7 @@ export default function ProductDetailPage({
                 <Button
                   variant="ghost"
                   size="icon-sm"
+                  disabled={product.stock < 1 || quantity >= product.stock}
                   onClick={() =>
                     setQuantity(Math.min(product.stock, quantity + 1))
                   }
@@ -222,7 +225,7 @@ export default function ProductDetailPage({
               <Button
                 variant="outline"
                 size="icon-lg"
-                onClick={(event) => toggleWishlist(product.id, event.currentTarget)}
+                onClick={(event) => toggleWishlist(product.id, event.currentTarget, product)}
                 aria-label={
                   wishlisted ? "Remove from wishlist" : "Add to wishlist"
                 }

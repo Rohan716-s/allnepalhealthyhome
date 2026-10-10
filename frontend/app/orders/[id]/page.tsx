@@ -1,7 +1,10 @@
 "use client";
 
-import { CheckCircle2, Clock3, Loader2, MapPin, PackageCheck, Truck, Upload, QrCode } from "lucide-react";
-import { use, useEffect, useState, type ChangeEvent } from "react";
+import { UniversalImageUploader } from "@/components/universal-image-uploader";
+import { useOfflineRefresh } from "@/lib/offline/hooks";
+
+import { CheckCircle2, Clock3, Loader2, MapPin, PackageCheck, Truck, QrCode } from "lucide-react";
+import { use, useEffect, useState } from "react";
 import { SiteFooter, SiteHeader } from "@/components/site-header";
 import { StatusBadge } from "@/components/status-badge";
 import { DeliveryTrackingMap } from "@/components/delivery-tracking-map";
@@ -45,7 +48,7 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
   }, [id]);
   useEffect(() => {
     const status = order?.delivery?.status;
-    if (!status || !["ASSIGNED_FOR_DELIVERY", "ACCEPTED", "PICKED_UP", "OUT_FOR_DELIVERY"].includes(status)) return;
+    if (!status || !["ASSIGNED_FOR_DELIVERY", "ACCEPTED", "PICKED_UP", "OUT_FOR_DELIVERY", "ARRIVED"].includes(status)) return;
     const token = localStorage.getItem("anhh-access-token");
     if (!token) return;
     let cancelled = false;
@@ -58,6 +61,10 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
         if (!cancelled) {
           setTracking(snapshot);
           setTrackingError(false);
+          if (snapshot.deliveryStatus !== status) {
+            const updated = await getCustomerOrder(id, token);
+            if (!cancelled) { setOrder(updated); setDocuments(await getCustomerOrderDocuments(id, token)); }
+          }
           setOrder(current => {
             if (!current?.delivery || current.delivery.status === snapshot.deliveryStatus) return current;
             return { ...current, delivery: { ...current.delivery, status: snapshot.deliveryStatus } };
@@ -72,23 +79,36 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
     void refresh();
     const timer = window.setInterval(() => {
       if (!document.hidden) void refresh();
-    }, 15000);
-    return () => { cancelled = true; window.clearInterval(timer); };
+    }, 10000);
+    const refreshLive = (event: Event) => {
+      const changedId = (event as CustomEvent<{ orderId?: string }>).detail?.orderId;
+      if (!changedId || changedId === id) void refresh();
+    };
+    const refreshVisible = () => { if (!document.hidden) void refresh(); };
+    window.addEventListener("anhh-delivery-location-changed", refreshLive);
+    document.addEventListener("visibilitychange", refreshVisible);
+    return () => {
+      cancelled = true;
+      window.clearInterval(timer);
+      window.removeEventListener("anhh-delivery-location-changed", refreshLive);
+      document.removeEventListener("visibilitychange", refreshVisible);
+    };
   }, [id, order?.delivery?.status]);
+  useOfflineRefresh(async () => {
+    const token = localStorage.getItem("anhh-access-token"); if (!token) return;
+    try { setDocuments(await getCustomerOrderDocuments(id, token)); setOrder(await getCustomerOrder(id, token)); } catch { /* Cached state remains visible. */ }
+  }, `/api/orders/${id}`);
   useEffect(() => {
-    if (!order || order.paymentStatus === "PAID" || order.paymentStatus === "REFUNDED") return;
+    if (!order) return;
     const token = localStorage.getItem("anhh-access-token");
     if (!token) return;
     let cancelled = false;
-    Promise.all([getOrderPaymentInstructions(id, token), getCustomerOrderDocuments(id, token)])
-      .then(([instructions, rows]) => { if (!cancelled) { setPayment(instructions); setDocuments(rows); } })
-      .catch((reason) => { if (!cancelled) setUploadError(reason instanceof ApiError ? reason.message : "Payment instructions could not be loaded."); });
+    void getCustomerOrderDocuments(id, token).then(rows => { if (!cancelled) setDocuments(rows); }).catch(() => undefined);
+    if (navigator.onLine && !["PAID", "REFUNDED"].includes(order.paymentStatus)) void getOrderPaymentInstructions(id, token).then(instructions => { if (!cancelled) setPayment(instructions); }).catch(() => { /* Proof uploads remain available without payment configuration. */ });
     return () => { cancelled = true; };
   }, [id, order]);
-  async function uploadProof(event: ChangeEvent<HTMLInputElement>) {
-    const file = event.target.files?.[0];
-    event.target.value = "";
-    if (!file) return;
+  async function uploadProof(file: File) {
+
     const token = localStorage.getItem("anhh-access-token");
     if (!token) { setUploadError("Your session expired. Sign in again to upload payment proof."); return; }
     setUploading(true); setUploadError("");
@@ -108,14 +128,16 @@ export default function OrderDetailPage({ params }: { params: Promise<{ id: stri
           <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700"><Truck size={17} /></span><div><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Delivery</p><p className="mt-1 text-xs font-extrabold">{order.delivery?.status?.replaceAll("_", " ") ?? "Being prepared"}</p></div></div>
           <div className="flex items-center gap-3"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-teal-50 text-teal-700"><PackageCheck size={17} /></span><div><p className="text-[10px] font-bold uppercase tracking-wide text-slate-400">Payment</p><p className="mt-1 text-xs font-extrabold">{order.paymentMethod.replaceAll("_", " ")} · {order.paymentStatus.replaceAll("_", " ")}</p></div></div>
         </div></div>
-        {order.delivery && ["ASSIGNED_FOR_DELIVERY", "ACCEPTED", "PICKED_UP", "OUT_FOR_DELIVERY"].includes(order.delivery.status) && <CustomerDeliveryTracker order={order} tracking={tracking} unavailable={trackingError} />}
-        {payment && order.paymentMethod !== "CASH_ON_DELIVERY" && order.paymentStatus !== "PAID" && order.paymentStatus !== "REFUNDED" && <Card className="mt-5 border-teal-100"><CardContent className="grid gap-5 p-5 sm:grid-cols-[1fr_auto] sm:p-6">
-          <div><div className="flex items-center gap-2 text-sm font-extrabold"><QrCode size={18} className="text-teal-700" /> Payment instructions</div><p className="mt-2 text-sm leading-6 text-slate-600">{payment.instructions || "Use the configured payment method and upload your receipt for verification."}</p><p className="mt-3 text-sm font-bold text-slate-900">Amount due: NPR {payment.amountDue.toLocaleString("en-NP", { minimumFractionDigits: 2 })}</p>
-            <label className="mt-5 inline-flex min-h-11 cursor-pointer items-center justify-center gap-2 rounded-xl bg-teal-700 px-4 text-sm font-bold text-white hover:bg-teal-800">{uploading ? <Loader2 className="animate-spin" size={16} /> : <Upload size={16} />}{uploading ? "Uploading…" : "Upload payment proof"}<input type="file" className="sr-only" accept="application/pdf,image/jpeg,image/png,image/webp" disabled={uploading} onChange={uploadProof} /></label>
+        {order.deliveryInstructions && <section className="surface mt-4 p-4"><h2 className="text-sm font-bold">Delivery notes</h2><p className="whitespace-pre-wrap break-words text-sm">{order.deliveryInstructions}</p></section>}
+        {order.delivery?.status === "DELIVERED" && documents.some(file => file.kind === "DELIVERY_PROOF") && <section className="surface mt-4 p-4"><h2 className="text-sm font-bold">Delivery proof</h2>{documents.filter(file => file.kind === "DELIVERY_PROOF").map(file => <button key={file.id} className="mt-2 block text-sm text-teal-800 underline" onClick={() => void downloadOrderDocument(file.downloadUrl, localStorage.getItem("anhh-access-token") || "").catch(reason => setUploadError(reason instanceof Error ? reason.message : "Proof could not be downloaded."))}>{file.originalFileName}</button>)}</section>}
+        {order.delivery && ["ASSIGNED_FOR_DELIVERY", "ACCEPTED", "PICKED_UP", "OUT_FOR_DELIVERY", "ARRIVED"].includes(order.delivery.status) && <CustomerDeliveryTracker order={order} tracking={tracking} unavailable={trackingError} />}
+        {order.paymentMethod !== "CASH_ON_DELIVERY" && order.paymentStatus !== "PAID" && order.paymentStatus !== "REFUNDED" && <Card className="mt-5 border-teal-100"><CardContent className="grid gap-5 p-5 sm:grid-cols-[1fr_auto] sm:p-6">
+          <div><div className="flex items-center gap-2 text-sm font-extrabold"><QrCode size={18} className="text-teal-700" /> Payment instructions</div><p className="mt-2 text-sm leading-6 text-slate-600">{payment?.instructions || "Reconnect to see current payment instructions. You can save an existing payment receipt on this device for upload when online."}</p>{payment && <p className="mt-3 text-sm font-bold text-slate-900">Amount due: NPR {payment.amountDue.toLocaleString("en-NP", { minimumFractionDigits: 2 })}</p>}
+            <UniversalImageUploader label="Payment proof" accept="application/pdf,image/jpeg,image/png,image/webp" maxBytes={10 * 1024 * 1024} disabled={uploading} uploadState={uploading ? "uploading" : "idle"} onChange={file => void uploadProof(file)} helperText="PDF, PNG, WebP or JPEG. Keep the full document readable." />
             {uploadError && <p role="alert" className="mt-3 text-sm font-semibold text-rose-700">{uploadError}</p>}
             {documents.length > 0 && <ul className="mt-4 grid gap-2 text-sm">{documents.map((document) => <li key={document.id}><button onClick={() => { const token = localStorage.getItem("anhh-access-token"); if (token) void downloadOrderDocument(document.downloadUrl, token).catch((reason) => setUploadError(reason instanceof Error ? reason.message : "Download failed.")); }} className="font-semibold text-teal-800 underline">{document.originalFileName}</button><span className="ml-2 text-xs text-slate-500">{document.kind.replaceAll("_", " ")}</span></li>)}</ul>}
           </div>
-          {payment.qrCodeUrl ? <img src={resolveMediaUrl(payment.qrCodeUrl)} alt="Configured payment QR code" className="mx-auto h-44 w-44 rounded-xl border border-slate-200 bg-white object-contain p-2 sm:mx-0" /> : <div className="grid min-h-40 place-items-center rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-500 sm:w-44">No QR code is configured for this payment method.</div>}
+          {payment?.qrCodeUrl ? <img src={resolveMediaUrl(payment.qrCodeUrl)} alt="Configured payment QR code" className="mx-auto h-44 w-44 rounded-xl border border-slate-200 bg-white object-contain p-2 sm:mx-0" /> : <div className="grid min-h-40 place-items-center rounded-xl bg-slate-50 p-4 text-center text-xs text-slate-500 sm:w-44">No QR code is configured for this payment method.</div>}
         </CardContent></Card>}
         <div className="mt-5 grid gap-5 lg:grid-cols-[1.2fr_.8fr]"><section className="surface overflow-hidden"><div className="border-b border-slate-100 px-6 py-5"><h2 className="text-lg font-extrabold">Items in this order</h2></div><div className="divide-y divide-slate-100">{order.items.map(item => <div key={item.id} className="flex items-center justify-between gap-4 px-6 py-5"><div><p className="text-sm font-bold text-slate-900">{item.productName}</p><p className="mt-1 text-xs text-slate-400">{item.sku} · Quantity {item.quantity}</p></div>{order.pricesVisible !== false && <span className="text-sm font-extrabold">NPR {(item.unitPrice * item.quantity).toLocaleString("en-NP", { minimumFractionDigits: 2 })}</span>}</div>)}</div>{order.pricesVisible !== false && <div className="grid gap-2 border-t border-slate-100 px-6 py-5 text-sm"><div className="flex justify-between text-slate-500"><span>Delivery</span><span>NPR {order.deliveryFee.toLocaleString("en-NP", { minimumFractionDigits: 2 })}</span></div><div className="flex justify-between text-base font-extrabold"><span>Total</span><span>NPR {order.total.toLocaleString("en-NP", { minimumFractionDigits: 2 })}</span></div></div>}</section>
           <aside className="grid gap-5"><Card><CardContent className="p-5"><div className="flex items-center gap-2 text-sm font-extrabold"><MapPin size={17} className="text-teal-700" /> Delivery address</div>{order.address ? <div className="mt-4 text-sm"><p className="font-bold">{order.address.streetTole}</p><p className="mt-1 text-xs leading-5 text-slate-600">Ward {order.address.ward}, {order.address.municipality}, {order.address.district}, {order.address.province}</p>{order.address.landmark && <p className="mt-2 text-xs text-slate-500">Landmark: {order.address.landmark}</p>}</div> : <p className="mt-3 text-sm text-slate-500">Address details unavailable.</p>}</CardContent></Card><Card><CardContent className="p-5"><h2 className="text-sm font-extrabold">Status history</h2><div className="mt-4 grid gap-3">{order.timeline.map(item => <div key={`${item.status}-${item.createdAt}`} className="flex gap-3 text-xs"><span className="mt-0.5 size-2 rounded-full bg-teal-600" /><div><p className="font-bold text-slate-800">{item.status.replaceAll("_", " ")}</p><p className="mt-1 text-slate-500">{formatNepalDateTime(item.createdAt)}{item.note ? ` · ${item.note}` : ""}</p></div></div>)}</div></CardContent></Card></aside>
@@ -140,11 +162,11 @@ function CustomerDeliveryTracker({ order, tracking, unavailable }: {
   const steps = [
     ["ASSIGNED_FOR_DELIVERY", "Rider assigned"],
     ["ACCEPTED", "Rider accepted"],
-    ["PICKED_UP", "Order picked up"],
-    ["OUT_FOR_DELIVERY", "Out for delivery"],
+    ["ARRIVED", "Arrived"],
     ["DELIVERED", "Delivered"],
   ] as const;
-  const currentStep = steps.findIndex(([step]) => step === status);
+  const progressStatus = ["PICKED_UP", "OUT_FOR_DELIVERY"].includes(status) ? "ACCEPTED" : status;
+  const currentStep = steps.findIndex(([step]) => step === progressStatus);
   const destination = tracking?.destination ?? (order.address?.latitude != null && order.address.longitude != null
     ? { latitude: order.address.latitude, longitude: order.address.longitude, address: order.address.streetTole }
     : null);

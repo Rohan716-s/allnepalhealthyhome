@@ -1,4 +1,5 @@
 "use client";
+import { LocationPicker } from "@/components/location-picker";
 
 /* eslint-disable react-hooks/set-state-in-effect -- this effect refreshes a remote delivery quote after address changes. */
 
@@ -434,14 +435,7 @@ export default function CheckoutPage() {
                 />
               </label>
               <div className="sm:col-span-2">
-                <Button type="button" variant="outline" onClick={() => {
-                  if (!navigator.geolocation) { setError("Location sharing is not available in this browser."); return; }
-                  navigator.geolocation.getCurrentPosition(
-                    (position) => { setDeliveryLocation({ latitude: position.coords.latitude, longitude: position.coords.longitude }); setError(""); },
-                    () => setError("Location was not shared. You can still place the order; delivery verification may require a map location."),
-                    { enableHighAccuracy: true, timeout: 12000, maximumAge: 60000 },
-                  );
-                }} className="min-h-11"><MapPin size={15} />{deliveryLocation ? "Delivery location saved" : "Share delivery location (recommended)"}</Button>
+                <LocationPicker value={deliveryLocation} onChange={setDeliveryLocation} />
                 <p className="mt-2 text-xs text-slate-500">Your rider can use this location for delivery verification. Your browser will ask before sharing it.</p>
               </div>
               <CheckoutField label={copy.landmark} value={form.landmark} onChange={(value) => update("landmark", value)} />

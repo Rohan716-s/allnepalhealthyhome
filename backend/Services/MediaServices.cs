@@ -57,6 +57,13 @@ public sealed class MediaFileStorage(IConfiguration configuration, IHostEnvironm
             Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "App_Data", "media")),
         }.Distinct(StringComparer.OrdinalIgnoreCase);
 
+    private string WriteRoot => configuredRoot
+        ?? (Directory.Exists(Path.Combine(environment.ContentRootPath, "backend"))
+            ? Path.Combine(environment.ContentRootPath, "backend", "App_Data", "media")
+            : Directory.Exists(Path.Combine(Directory.GetCurrentDirectory(), "backend"))
+                ? Path.Combine(Directory.GetCurrentDirectory(), "backend", "App_Data", "media")
+                : Path.Combine(environment.ContentRootPath, "App_Data", "media"));
+
     public async Task<StoredMediaFile> SaveAsync(IFormFile file, CancellationToken cancellationToken, bool allowSvg = false)
     {
         if (file is null || file.Length == 0) throw new InvalidDataException("Please choose an image.");
@@ -70,7 +77,8 @@ public sealed class MediaFileStorage(IConfiguration configuration, IHostEnvironm
         await using var input = file.OpenReadStream();
         await input.ReadExactlyAsync(bytes, cancellationToken);
         if (!HasExpectedSignature(bytes, extension) || !HasUsableDimensions(bytes, extension)) throw new InvalidDataException("The uploaded file is not a valid image or could not be processed.");
-        var root = Roots.First();
+        ImageContentValidation.Validate(bytes, extension);
+        var root = WriteRoot;
         Directory.CreateDirectory(root);
         var storedName = $"{Guid.NewGuid():N}{extension.ToLowerInvariant()}";
         await File.WriteAllBytesAsync(Path.Combine(root, storedName), bytes, cancellationToken);
@@ -108,7 +116,7 @@ public sealed class MediaFileStorage(IConfiguration configuration, IHostEnvironm
         if (!input.CanSeek) throw new InvalidDataException("This video upload could not be processed. Please try again.");
         input.Position = 0;
 
-        var root = Roots.First();
+        var root = WriteRoot;
         Directory.CreateDirectory(root);
         var storedName = $"{Guid.NewGuid():N}{extension}";
         var path = Path.Combine(root, storedName);

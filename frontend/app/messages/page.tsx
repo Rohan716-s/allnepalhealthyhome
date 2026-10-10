@@ -8,6 +8,7 @@ import { AdminShell } from "@/components/admin-shell";
 import { SiteHeader } from "@/components/site-header";
 import { StaffShell } from "@/components/staff-shell";
 import { MessagingCenter } from "@/components/messaging-center";
+import { getAuthenticatedStaffRole } from "@/lib/staff-routing";
 import type { Staff } from "@/services/api";
 
 type AccountType = "staff" | "customer";
@@ -31,7 +32,10 @@ export default function MessagesPage() {
     const staffToken = window.localStorage.getItem("anhh-staff-access-token");
     const customerToken = window.localStorage.getItem("anhh-access-token");
     const requested = new URLSearchParams(window.location.search).get("account");
-    const account: AccountType = requested === "staff"
+    const authenticatedStaffRole = getAuthenticatedStaffRole();
+    const account: AccountType = authenticatedStaffRole
+      ? "staff"
+      : requested === "staff"
       ? "staff"
       : requested === "customer"
         ? "customer"
@@ -45,7 +49,7 @@ export default function MessagesPage() {
       return;
     }
 
-    if (account === "staff") setStaffRole(cachedStaff()?.role?.trim().toUpperCase() ?? "");
+    if (account === "staff") setStaffRole(authenticatedStaffRole ?? cachedStaff()?.role?.trim().toUpperCase() ?? "");
     setAuthorized(true);
   }, [router]);
 

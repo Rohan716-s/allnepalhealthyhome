@@ -1,4 +1,6 @@
 "use client";
+import { RecordTable } from "@/components/entity-record-table";
+import { EntityListWorkspace, EntityListPanel, showEntityList, EntityFormPanel , entitySaveComplete } from "@/components/entity-list-panel";
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -202,7 +204,7 @@ function HeroSlideList() {
         ),
       );
       toast.success(`${item.title} ${next ? "Activated" : "Deactivated"}.`);
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Status could not be updated.",
       );
@@ -219,7 +221,7 @@ function HeroSlideList() {
         ),
       );
       toast.success(`${remove.title} Deactivated.`);
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       toast.error(
         e instanceof Error ? e.message : "Hero slide could not be removed.",
       );
@@ -281,7 +283,7 @@ function HeroSlideList() {
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full min-w-[1050px] text-left text-sm">
+              <RecordTable className="w-full min-w-[1050px] text-left text-sm">
                 <thead className="border-y border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
                   <tr>
                     {[
@@ -397,7 +399,7 @@ function HeroSlideList() {
                     </tr>
                   )}
                 </tbody>
-              </table>
+              </RecordTable>
             </div>
           )}
         </CardContent>
@@ -638,8 +640,8 @@ function HeroSlideForm({
         setUploadProgress(null);
         setTypingSpeedInput(String(defaults.typingSpeedMs));
         setForm({ ...defaults, displayOrder: saved.displayOrder + 1 });
-      } else router.push(listPath);
-    } catch (e) {
+      } else showEntityList(listPath);
+     entitySaveComplete(); } catch (e) {
       const message =
         e instanceof Error ? e.message : "Hero slide could not be saved.";
       setError(message);
@@ -670,7 +672,7 @@ function HeroSlideForm({
     error ||
     (editing && !normalizedSlideId ? "The hero slide ID is missing." : "");
   const typingSpeedError = validateTypingSpeed(typingSpeedInput);
-  return (
+  return <EntityListWorkspace title="Hero slides">{(
     <div>
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
@@ -694,8 +696,8 @@ function HeroSlideForm({
           {visibleError}
         </p>
       )}
-      <form
-        className="mt-7 grid gap-6 xl:grid-cols-[minmax(0,1fr)_440px]"
+      <EntityFormPanel formKey="0"><form
+        className="mt-7 grid gap-6 "
         onSubmit={(event: FormEvent) => {
           event.preventDefault();
           void persist(false);
@@ -846,7 +848,7 @@ function HeroSlideForm({
               </CardTitle>
             </CardHeader>
             <CardContent className="grid gap-5 sm:grid-cols-2">
-              <UniversalImageUploader
+              <UniversalImageUploader disabled={saving} uploadState={saving ? "uploading" : "idle"}
                 label={form.videoUrl || videoFile ? "Poster / fallback image" : "Desktop image"}
                 value={desktopPreview || form.desktopImage}
                 onChange={(file) => {
@@ -861,7 +863,7 @@ function HeroSlideForm({
                 required
                 helperText="JPG, PNG, WebP, GIF, BMP, or AVIF · maximum 8 MB"
               />
-              <UniversalImageUploader
+              <UniversalImageUploader disabled={saving} uploadState={saving ? "uploading" : "idle"}
                 label="Mobile image"
                 value={mobilePreview || form.mobileImage}
                 onChange={(file) => {
@@ -873,7 +875,7 @@ function HeroSlideForm({
                   setMobilePreview("");
                   setField("mobileImage", "");
                 }}
-                helperText="Optional. Desktop image is used on mobile when empty."
+                helperText="Optional portrait image; 4:5 recommended. Desktop image is used on mobile when empty."
               />
             </CardContent>
           </Card>
@@ -1137,7 +1139,7 @@ function HeroSlideForm({
             onSaveAndAnother={!editing ? () => void persist(true) : undefined}
           />
         </div>
-        <div className="xl:sticky xl:top-6 xl:self-start">
+        <div className=" xl:self-start">
           <Card>
             <CardHeader>
               <CardTitle>Live preview</CardTitle>
@@ -1151,9 +1153,9 @@ function HeroSlideForm({
             </CardContent>
           </Card>
         </div>
-      </form>
+      </form></EntityFormPanel>
     </div>
-  );
+  )}<EntityListPanel formKey="0"><AdminSlideshowList listPath={listPath} superAdmin={superAdmin} /></EntityListPanel></EntityListWorkspace>;
 }
 
 function Field({

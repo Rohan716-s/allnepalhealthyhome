@@ -45,6 +45,7 @@ public sealed class OrderDocumentStorage(IConfiguration configuration, IHostEnvi
         var bytes = new byte[checked((int)file.Length)];
         await using (var input = file.OpenReadStream()) await input.ReadExactlyAsync(bytes, cancellationToken);
         if (!HasExpectedSignature(bytes, extension)) throw new InvalidDataException("The document content does not match its file type.");
+        if (file.ContentType.StartsWith("image/", StringComparison.OrdinalIgnoreCase)) ImageContentValidation.Validate(bytes, extension);
         Directory.CreateDirectory(Root);
         var stored = $"{Guid.NewGuid():N}{extension}";
         await File.WriteAllBytesAsync(Path.Combine(Root, stored), bytes, cancellationToken);

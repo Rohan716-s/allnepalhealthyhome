@@ -1,4 +1,5 @@
 "use client";
+import { OfflineStatus } from "@/components/offline-status";
 
 /* eslint-disable react-hooks/set-state-in-effect -- hydrate this protected workspace from the browser session. */
 
@@ -165,7 +166,7 @@ export default function AttendancePage() {
   return (
     <main className="min-h-screen bg-slate-100 px-4 py-6 sm:px-6 lg:px-10">
       <div className="mx-auto max-w-7xl">
-        <BackButton fallbackHref={attendanceHome(user?.role)} />
+        <div className="flex items-center justify-between"><BackButton fallbackHref={attendanceHome(user?.role)} /><OfflineStatus /></div>
         <div className="flex flex-wrap items-start justify-between gap-4">
           <div>
             <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#003893]">
@@ -182,15 +183,8 @@ export default function AttendancePage() {
               email={user.email}
               accountTypeLabel={user.role}
               links={[
-                { label: "My Account", href: "/attendance" },
-                {
-                  label: "My Orders",
-                  href:
-                    user.role === "DELIVERY"
-                      ? "/delivery/orders"
-                      : "/pharmacist/orders",
-                },
-                { label: "Wishlist", href: "/wishlist" },
+                { label: "My workspace", href: attendanceHome(user.role) },
+                { label: "My leave", href: "/leave" },
               ]}
             />
           )}

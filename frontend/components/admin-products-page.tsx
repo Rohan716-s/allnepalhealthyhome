@@ -1,12 +1,14 @@
 "use client";
 
+import { UniversalImageUploader } from "@/components/universal-image-uploader";
+import { EntityListWorkspace, EntityListPanel, showEntityList, EntityFormPanel , entitySaveComplete } from "@/components/entity-list-panel";
+
 import { FormEvent, useCallback, useEffect, useState } from "react";
 import {
   ArrowLeft,
   ArrowDown,
   ArrowUp,
   Edit3,
-  ImagePlus,
   Loader2,
   PackageSearch,
   Plus,
@@ -18,7 +20,7 @@ import { toast } from "sonner";
 import { ActiveStatusToggle } from "@/components/active-status-toggle";
 import { AdminShell } from "@/components/admin-shell";
 import { FormSaveActions } from "@/components/form-save-actions";
-import { IMAGE_ACCEPT, validateImageFile } from "@/lib/image-upload";
+import { TRANSPARENCY_PREVIEW_STYLE, validateImageFile } from "@/lib/image-upload";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -176,7 +178,7 @@ export function AdminProductsPage({
       toast.success(
         `${result.updated} product${result.updated === 1 ? "" : "s"} updated`,
       );
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       setError(
         e instanceof Error ? e.message : "Products could not be updated.",
       );
@@ -202,7 +204,7 @@ export function AdminProductsPage({
       toast.success(
         `${product.name} ${isActive ? "Activated" : "Deactivated"}`,
       );
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       const message =
         e instanceof Error ? e.message : "Product status could not be updated.";
       setError(message);
@@ -531,7 +533,7 @@ export function AdminProductFormPage({
     setImages(next);
     setForm(current => ({ ...current, imageUrl: next[0]?.url ?? "" }));
   }
-  function addImageFiles(files: FileList | null) {
+  function addImageFiles(files: File[] | null) {
     if (!files?.length) return;
     const available = 5 - images.length;
     if (files.length > available) { setError(`A product can have up to 5 images. You can add ${available} more.`); return; }
@@ -610,14 +612,14 @@ export function AdminProductFormPage({
             : `${saved.name} created successfully.`,
       );
       setDirty(false);
-      if (editing || !saveAndAnother) router.push(listPath);
+      if (editing || !saveAndAnother) showEntityList(listPath);
       else {
         setForm(blank);
         images.forEach(image => { if (image.file) URL.revokeObjectURL(image.preview); });
         setImages([]);
         window.scrollTo({ top: 0, behavior: "smooth" });
       }
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       const message = e instanceof Error ? e.message : "Product could not be saved.";
       setError(message);
       toast.error(message);
@@ -635,7 +637,7 @@ export function AdminProductFormPage({
   }
 
   return (
-    <AdminShell superAdmin={superAdmin}>
+    <EntityListWorkspace title="Products"><AdminShell superAdmin={superAdmin}>
       <div className="mx-auto max-w-4xl">
         <button
           type="button"
@@ -672,7 +674,7 @@ export function AdminProductFormPage({
             Loading product form…
           </div>
         ) : (
-          <form onSubmit={submit} className="mt-7 grid gap-6">
+          <EntityFormPanel formKey="0"><form onSubmit={submit} className="mt-7 grid gap-6">
             <Card>
               <CardHeader>
                 <CardTitle>Basic information</CardTitle>
@@ -818,8 +820,8 @@ export function AdminProductFormPage({
                       <p className="mt-1 text-xs text-slate-500">Add 1–5 JPG, PNG, or WebP images. The first image is the listing image.</p>
                     </div>
                     <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 md:grid-cols-5">
-                      {images.map((image, index) => <div key={`${image.preview}-${index}`} className="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50">
-                        <img src={image.file ? image.preview : resolveMediaUrl(image.preview)} alt={`Product image ${index + 1}`} onError={(event) => { const target = event.currentTarget; if (target.dataset.fallback) return; target.dataset.fallback = "true"; target.src = "/catalog-placeholder.svg"; }} className="aspect-square h-full w-full object-contain p-2 mix-blend-multiply" />
+                      {images.map((image, index) => <div key={`${image.preview}-${index}`} className="group relative overflow-hidden rounded-xl border border-slate-200 bg-slate-50" style={TRANSPARENCY_PREVIEW_STYLE}>
+                        <img src={image.file ? image.preview : resolveMediaUrl(image.preview)} alt={`Product image ${index + 1}`} onError={(event) => { const target = event.currentTarget; if (target.dataset.fallback) return; target.dataset.fallback = "true"; target.src = "/catalog-placeholder.svg"; }} className="aspect-square h-full w-full object-contain p-2 " />
                         <div className="absolute inset-x-1 bottom-1 flex justify-between gap-1 opacity-0 transition group-hover:opacity-100 focus-within:opacity-100">
                           <Button type="button" variant="secondary" size="icon-sm" disabled={index === 0} onClick={() => moveImage(index, -1)} aria-label={`Move image ${index + 1} left`}><ArrowUp size={14} /></Button>
                           <Button type="button" variant="secondary" size="icon-sm" disabled={index === images.length - 1} onClick={() => moveImage(index, 1)} aria-label={`Move image ${index + 1} right`}><ArrowDown size={14} /></Button>
@@ -827,7 +829,7 @@ export function AdminProductFormPage({
                         </div>
                         {index === 0 && <span className="absolute left-1 top-1 rounded bg-slate-900/80 px-1.5 py-0.5 text-[9px] font-bold text-white">Primary</span>}
                       </div>)}
-                      {images.length < 5 && <label htmlFor="product-images" className="flex aspect-square cursor-pointer flex-col items-center justify-center gap-2 rounded-xl border border-dashed border-slate-300 bg-slate-50 text-center text-xs font-semibold text-slate-500 hover:border-[#003893] hover:text-[#003893]"><ImagePlus size={22} /><span>Add image</span><input id="product-images" type="file" className="sr-only" accept={IMAGE_ACCEPT} multiple onChange={event => { addImageFiles(event.target.files); event.currentTarget.value = ""; }} /></label>}
+                      {images.length < 5 && <UniversalImageUploader disabled={saving} uploadState={saving ? "uploading" : "idle"} key={images.length} label="Add product images" multiple maxFiles={5 - images.length} onFiles={addImageFiles} onChange={file => addImageFiles([file])} aspect="aspect-square" helperText="Up to 5 images. Square packshots recommended; full packaging remains visible." />}
                     </div>
                     {!images.length && <p className="text-xs font-semibold text-rose-700">At least one product image is required.</p>}
                   </div>
@@ -910,7 +912,7 @@ export function AdminProductFormPage({
               onSaveAndAnother={!editing ? () => void save(true) : undefined}
               saveLabel={editing ? "Save changes" : "Save & list"}
             />
-          </form>
+          </form></EntityFormPanel>
         )}
         <AlertDialog open={discardOpen} onOpenChange={setDiscardOpen}>
           <AlertDialogContent>
@@ -929,6 +931,6 @@ export function AdminProductFormPage({
           </AlertDialogContent>
         </AlertDialog>
       </div>
-    </AdminShell>
+    <EntityListPanel formKey="0"><AdminProductsPage superAdmin={superAdmin} /></EntityListPanel></AdminShell></EntityListWorkspace>
   );
 }

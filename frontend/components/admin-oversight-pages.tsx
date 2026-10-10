@@ -13,6 +13,8 @@ import {
   Staff,
   updateAdminOrderStatus,
 } from "@/services/api";
+import { OrderDeliveryDetails } from "@/components/order-delivery-details";
+import { useDeliveryRefresh } from "@/lib/delivery-refresh";
 import { AdminOrderAssignment } from "@/components/admin-order-assignment";
 import { AdminShell } from "@/components/admin-shell";
 import {
@@ -93,6 +95,11 @@ export function AdminOrdersPage({
   );
   const [detailLoading, setDetailLoading] = useState(false);
   const [detailError, setDetailError] = useState("");
+  useDeliveryRefresh(async () => {
+    const token = localStorage.getItem("anhh-staff-access-token"); if (!token) return;
+    const list = await getAdminOrders(token, { search: search || undefined, status: status || undefined }, superAdmin); setRows(list.items);
+    if (selectedOrder) setSelectedOrder(await getAdminOrder(selectedOrder.id, token, superAdmin));
+  });
   useEffect(() => {
     const timer = window.setTimeout(() => {
       const token = window.localStorage.getItem("anhh-staff-access-token");
@@ -481,6 +488,7 @@ export function AdminPrescriptionsPage({
 function OrderDetailContent({ order }: { order: AdminOrderDetail }) {
   return (
     <div className="grid gap-5">
+      <OrderDeliveryDetails order={order} token={typeof window === "undefined" ? "" : localStorage.getItem("anhh-staff-access-token") || ""} />
       <div className="grid gap-3 sm:grid-cols-2">
         <Info
           title="Customer"

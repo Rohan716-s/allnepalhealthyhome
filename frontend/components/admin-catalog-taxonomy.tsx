@@ -1,4 +1,5 @@
 "use client";
+import { EntityListWorkspace, EntityListPanel, showEntityList, EntityFormPanel , entitySaveComplete } from "@/components/entity-list-panel";
 
 import {
   FormEvent,
@@ -335,8 +336,8 @@ export function AdminCatalogTaxonomy({
       await action();
       toast.success(`${type[0].toUpperCase()}${type.slice(1)} saved`);
       if (view === "embedded" || saveAndAnother) reset();
-      else router.push(listPath);
-    } catch (e) {
+      else showEntityList(listPath);
+     entitySaveComplete(); } catch (e) {
       setError(
         e instanceof Error
           ? e.message
@@ -368,7 +369,7 @@ export function AdminCatalogTaxonomy({
       toast.success(
         `${type[0].toUpperCase()}${type.slice(1)} is now ${isActive ? "active" : "inactive"}`,
       );
-    } catch (e) {
+     entitySaveComplete(); } catch (e) {
       const message =
         e instanceof Error ? e.message : "Status could not be updated.";
       setError(message);
@@ -391,7 +392,7 @@ export function AdminCatalogTaxonomy({
   const visibleMedicines = medicines.filter((row) =>
     matchesStatus(row.isActive),
   );
-  return (
+  return <EntityListWorkspace title="Catalog records" enabled={view !== "list"}>{(
     <section className="mt-10 border-t border-slate-200 pt-10">
       <div>
         <p className="text-xs font-extrabold uppercase tracking-[0.18em] text-[#003893]">
@@ -426,7 +427,7 @@ export function AdminCatalogTaxonomy({
                   editing={editingType === "category"}
                   onCancel={cancelForm}
                 >
-                  <form
+                  <EntityFormPanel formKey={entity ? "0" : "0"}><form
                     onSubmit={saveCategory}
                     className="grid gap-3 sm:grid-cols-2"
                   >
@@ -466,7 +467,7 @@ export function AdminCatalogTaxonomy({
                       onCancel={cancelForm}
                       onSaveAndAnother={() => void persistCategory(true)}
                     />
-                  </form>
+                  </form></EntityFormPanel>
                 </TaxonomyCard>
               ) : null}
               {(!entity || entity === "brand") && (!isFormView || entity === "brand") ? (
@@ -476,7 +477,7 @@ export function AdminCatalogTaxonomy({
                   editing={editingType === "brand"}
                   onCancel={cancelForm}
                 >
-                  <form
+                  <EntityFormPanel formKey={entity ? "0" : "1"}><form
                     onSubmit={saveBrand}
                     className="grid gap-3 sm:grid-cols-2"
                   >
@@ -505,7 +506,7 @@ export function AdminCatalogTaxonomy({
                       onCancel={cancelForm}
                       onSaveAndAnother={() => void persistBrand(true)}
                     />
-                  </form>
+                  </form></EntityFormPanel>
                 </TaxonomyCard>
               ) : null}
               {(!entity || entity === "manufacturer") && (!isFormView || entity === "manufacturer") ? (
@@ -515,7 +516,7 @@ export function AdminCatalogTaxonomy({
                   editing={editingType === "manufacturer"}
                   onCancel={cancelForm}
                 >
-                  <form
+                  <EntityFormPanel formKey={entity ? "0" : "2"}><form
                     onSubmit={saveManufacturer}
                     className="grid gap-3 sm:grid-cols-2"
                   >
@@ -540,7 +541,7 @@ export function AdminCatalogTaxonomy({
                       onCancel={cancelForm}
                       onSaveAndAnother={() => void persistManufacturer(true)}
                     />
-                  </form>
+                  </form></EntityFormPanel>
                 </TaxonomyCard>
               ) : null}
               {(!entity || entity === "medicine") && (!isFormView || entity === "medicine") ? (
@@ -550,7 +551,7 @@ export function AdminCatalogTaxonomy({
                   editing={editingType === "medicine"}
                   onCancel={cancelForm}
                 >
-                  <form
+                  <EntityFormPanel formKey={entity ? "0" : "3"}><form
                     onSubmit={saveMedicine}
                     className="grid gap-3 sm:grid-cols-2"
                   >
@@ -657,14 +658,14 @@ export function AdminCatalogTaxonomy({
                       onCancel={cancelForm}
                       onSaveAndAnother={() => void persistMedicine(true)}
                     />
-                  </form>
+                  </form></EntityFormPanel>
                 </TaxonomyCard>
               ) : null}
             </div>
           )}
         </>
       )}{" "}
-      {!loading && !isFormView && (
+      <EntityListPanel formKey="0">{!loading && (
         <>
           <div className="mt-6 flex items-center justify-end gap-2">
             <Label
@@ -761,9 +762,9 @@ export function AdminCatalogTaxonomy({
             />}
           </div>
         </>
-      )}
+      )}</EntityListPanel>
     </section>
-  );
+  )}</EntityListWorkspace>;
 }
 
 function TaxonomyCard({
