@@ -186,8 +186,9 @@ function HeroVideo({
           const nextMuted = !video.muted;
           video.muted = nextMuted;
           onMutedChange(nextMuted);
-          // Keep play inside the user gesture for browsers that require it.
-          if (!nextMuted && autoplay && !reducedMotion) {
+          // A user gesture can start playback even when autoplay is disabled
+          // by reduced-motion settings or blocked by the browser.
+          if (video.paused || !nextMuted) {
             void video.play().catch(() => {
               if (videoRef.current !== video || video.muted) return;
               video.muted = true;
