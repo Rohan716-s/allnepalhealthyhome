@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useRef, useState, type CSSProperties } from "react";
-import { ArrowLeft, ArrowRight, ImageOff } from "lucide-react";
+import { ArrowLeft, ArrowRight, ImageOff, Volume2, VolumeX } from "lucide-react";
 import { resolveMediaUrl, type TrendingProduct } from "@/services/api";
 import { Button } from "@/components/ui/button";
 import { useSiteConfig } from "@/components/site-config-provider";
@@ -107,6 +107,8 @@ function HeroVideo({
   title,
   reducedMotion,
   autoplay,
+  muted,
+  onMutedChange,
   onDuration,
   onError,
 }: {
@@ -115,6 +117,8 @@ function HeroVideo({
   title: string;
   reducedMotion: boolean;
   autoplay: boolean;
+  muted: boolean;
+  onMutedChange: (muted: boolean) => void;
   onDuration: (durationSeconds: number) => void;
   onError: () => void;
 }) {
@@ -127,17 +131,20 @@ function HeroVideo({
     // Muted autoplay is allowed by modern browsers. Calling play after the
     // source is ready also covers videos selected or replaced dynamically.
     const startPlayback = () => {
-      video.muted = true;
+      video.muted = muted;
       void video.play().catch(() => {
-        // A browser may still block playback; the poster remains a safe
-        // fallback without surfacing native media controls over the design.
+        if (videoRef.current !== video) return;
+        // Retry silently when a browser refuses autoplay with sound.
+        video.muted = true;
+        onMutedChange(true);
+        void video.play().catch(() => {});
       });
     };
 
     if (video.readyState >= HTMLMediaElement.HAVE_CURRENT_DATA) startPlayback();
     else video.addEventListener("canplay", startPlayback, { once: true });
     return () => video.removeEventListener("canplay", startPlayback);
-  }, [autoplay, reducedMotion, src]);
+  }, [autoplay, muted, onMutedChange, reducedMotion, src]);
 
   return (
     <div className="relative flex min-h-[220px] max-h-[520px] w-full items-center justify-center overflow-hidden rounded-xl bg-slate-950 shadow-sm">
@@ -146,7 +153,8 @@ function HeroVideo({
         src={src}
         poster={poster}
         autoPlay={autoplay && !reducedMotion}
-        muted
+        muted={muted}
+        onVolumeChange={(event) => onMutedChange(event.currentTarget.muted)}
         controls={false}
         loop
         playsInline
@@ -165,6 +173,32 @@ function HeroVideo({
       >
         Your browser cannot play this video. The poster image is shown instead.
       </video>
+      <button
+        type="button"
+        aria-label={muted ? "Unmute video" : "Mute video"}
+        title={muted ? "Unmute video" : "Mute video"}
+        className="absolute bottom-3 right-3 z-10 flex h-11 w-11 items-center justify-center rounded-full bg-slate-950/75 text-white shadow-sm hover:bg-slate-950 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-white focus-visible:ring-offset-2 focus-visible:ring-offset-slate-950"
+        onClick={(event) => {
+          event.preventDefault();
+          event.stopPropagation();
+          const video = videoRef.current;
+          if (!video) return;
+          const nextMuted = !video.muted;
+          video.muted = nextMuted;
+          onMutedChange(nextMuted);
+          // Keep play inside the user gesture for browsers that require it.
+          if (!nextMuted && autoplay && !reducedMotion) {
+            void video.play().catch(() => {
+              if (videoRef.current !== video || video.muted) return;
+              video.muted = true;
+              onMutedChange(true);
+              void video.play().catch(() => {});
+            });
+          }
+        }}
+      >
+        {muted ? <VolumeX size={20} aria-hidden="true" /> : <Volume2 size={20} aria-hidden="true" />}
+      </button>
     </div>
   );
 }
@@ -182,6 +216,7 @@ export function HeroSlider({
   const [active, setActive] = useState(0);
   const [activeVisit, setActiveVisit] = useState(0);
   const [paused, setPaused] = useState(false);
+  const [videoMuted, setVideoMuted] = useState(true);
   const systemReducedMotion = useReducedMotion();
   const [failedImages, setFailedImages] = useState<Record<string, boolean>>({});
   const [failedVideos, setFailedVideos] = useState<Record<string, boolean>>({});
@@ -496,6 +531,8 @@ export function HeroSlider({
                 title={title || "Homepage campaign"}
                 reducedMotion={reducedMotion}
                 autoplay={current.autoplayEnabled !== false}
+                muted={videoMuted}
+                onMutedChange={setVideoMuted}
                 onDuration={(durationSeconds) => {
                   // HTMLMediaElement.duration is always reported in seconds,
                   // including videos that are several minutes long.

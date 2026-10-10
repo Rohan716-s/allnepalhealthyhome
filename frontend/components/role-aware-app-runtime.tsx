@@ -1,7 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
-import { useEffect } from "react";
+import { useEffect, useSyncExternalStore } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { ConfirmationModalHost } from "@/components/confirmation-modal";
 import { NotificationRealtime } from "@/components/notification-realtime";
@@ -18,6 +18,10 @@ const AiPharmacyAssistant = dynamic(
   { ssr: false },
 );
 
+const subscribeToHydration = () => () => {};
+const clientHydrated = () => true;
+const serverHydrated = () => false;
+
 export function RoleAwareAppRuntime({
   children,
   modal,
@@ -27,7 +31,11 @@ export function RoleAwareAppRuntime({
 }) {
   const pathname = usePathname() ?? "/";
   const router = useRouter();
-  const { authenticatedStaffRole, roleResolved } = useSiteConfig();
+  const { authenticatedStaffRole, roleResolved: configuredRoleResolved } = useSiteConfig();
+  // The parent may resolve the role while this Suspense boundary is still
+  // hydrating. Keep its first client render consistent with the server.
+  const hydrated = useSyncExternalStore(subscribeToHydration, clientHydrated, serverHydrated);
+  const roleResolved = hydrated && configuredRoleResolved;
   const staffRoute = isStaffWorkspacePath(pathname);
   const customerMessagesRoute = pathname === "/messages"
     && !authenticatedStaffRole
