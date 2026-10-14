@@ -189,8 +189,9 @@ public sealed class AccountSetupController(ApplicationDbContext db) : Controller
             if (input.ParentAccountId == currentId || !await db.ChartAccounts.AnyAsync(x => x.Id == input.ParentAccountId && x.IsActive, ct)) return "Choose an active parent account other than this account.";
             var visited = new HashSet<Guid>();
             var parentId = input.ParentAccountId;
-            while (parentId.HasValue && visited.Add(parentId.Value))
+            while (parentId.HasValue)
             {
+                if (!visited.Add(parentId.Value)) return "The selected parent already belongs to a circular account hierarchy.";
                 if (parentId == currentId) return "An account cannot be placed beneath one of its own descendants.";
                 parentId = await db.ChartAccounts.Where(x => x.Id == parentId.Value).Select(x => x.ParentAccountId).FirstOrDefaultAsync(ct);
             }
